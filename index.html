@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: drafting-sheet map (fixed stage that scales to fit) above a detail panel, then a revision table and exam notes */
+/* Layout: sticky top bar + left course index; main area swaps views (map, per-topic sheet with technical drawing, summary, exam prep) */
 :root{
   --bg:#eceff3; --sheet:#f8f9fb; --surface:#ffffff; --ink:#15191f; --muted:#3f4752;
   --line:#8c97a5; --grid:#dde2e9; --accent:#1f4fc4; --chain:#e2e9fa; --warm:#f6ead6; --warm-line:#a8641a;
@@ -27,18 +27,40 @@
   --uts:#24345c; --uas:#4a3518; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0}
-.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:20px}
 h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0;color:var(--ink)}
 h1{font-size:clamp(28px,4vw,40px);line-height:1.05}
-h2{font-size:24px}
-h3{font-size:19px}
-.lede{max-width:70ch;color:var(--ink);margin:6px 0 0}
+h2{font-size:24px} h3{font-size:19px}
+a{color:var(--accent)}
+.lede{max-width:72ch;margin:6px 0 0}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ink);color:var(--surface);
+  display:flex;align-items:center;gap:12px;padding-inline:16px;padding-block:10px}
+.bar .brand{font:700 20px/1 var(--display);letter-spacing:.02em;color:var(--surface);text-decoration:none}
+.bar .sub{font-size:12.5px;opacity:.85}
+.bar .grow{flex:1}
+#menu-btn{display:none;font:600 14px var(--body);background:transparent;color:var(--surface);border:1.5px solid var(--surface);border-radius:4px;padding:6px 12px;cursor:pointer}
+
+/* shell */
+.shell{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;padding-inline:16px;padding-block:20px 48px}
+nav.index{position:sticky;top:72px;align-self:start;max-height:calc(100vh - 90px);overflow-y:auto;display:grid;gap:14px;font-size:14px}
+nav.index .grp{display:grid;gap:2px}
+nav.index .gt{font:600 11px var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px}
+nav.index a{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--ink);text-decoration:none;padding:6px 10px;border-radius:4px;border-left:3px solid transparent}
+nav.index a:hover{background:var(--surface)}
+nav.index a[aria-current="page"]{background:var(--surface);border-left-color:var(--accent);font-weight:600}
+nav.index .n{font:500 11px var(--mono);color:var(--muted)}
+main{min-width:0;display:grid;gap:20px;align-content:start}
+.view{display:grid;gap:20px;min-width:0}
+.view[hidden]{display:none!important}
+
+/* map */
 .top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between}
 .filters{display:flex;flex-wrap:wrap;gap:8px}
-.filters button{font:500 14px var(--body);color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
-.filters button[aria-pressed="true"]{border-color:var(--accent);background:var(--chain)}
-.filters button:focus-visible,.node:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-
+.btn{font:500 14px var(--body);color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn[aria-pressed="true"]{border-color:var(--accent);background:var(--chain)}
+.btn:focus-visible,.node:focus-visible,nav.index a:focus-visible,#menu-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .mapbox{background:var(--sheet);border:1px solid var(--line);border-radius:6px;overflow-x:auto;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px}
 .scaler{position:relative}
@@ -46,384 +68,811 @@ h3{font-size:19px}
 svg.edges{position:absolute;inset:0;width:1180px;height:880px;overflow:visible}
 .edge{stroke:var(--line);stroke-width:1.6;fill:none}
 .edge.loop{stroke-dasharray:6 5}
-.edge.on{stroke:var(--accent);stroke-width:2.4}
 .lbl rect{fill:var(--sheet)}
 .lbl text{font:500 11.5px var(--body);fill:var(--ink)}
-.lbl.on text{fill:var(--ink);font-weight:600}
-.lbl.on rect{fill:var(--chain)}
-.marker{fill:var(--line)} .marker.on{fill:var(--accent)}
-
+.marker{fill:var(--line)}
 .node{position:absolute;display:flex;flex-direction:column;gap:3px;text-align:left;padding:9px 11px;border-radius:5px;
-  background:var(--surface);border:1.5px solid var(--ink);color:var(--ink);font:400 12.5px/1.35 var(--body);cursor:pointer;transition:opacity .2s,box-shadow .2s}
+  background:var(--surface);border:1.5px solid var(--ink);color:var(--ink);font:400 12.5px/1.35 var(--body);cursor:pointer;transition:opacity .2s,box-shadow .2s,transform .15s;text-decoration:none}
+.node:hover{box-shadow:0 0 0 3px var(--accent)}
 .node b{font:700 16px/1.1 var(--display);letter-spacing:.01em}
 .node .f{font:400 11.5px/1.35 var(--mono)}
 .node .k{font:600 10.5px var(--body);letter-spacing:.08em;text-transform:uppercase}
 .node.root{background:var(--ink);color:var(--surface);border-color:var(--ink);align-items:center;justify-content:center;text-align:center}
 .node.root b{font-size:20px}
 .node.chain{background:var(--chain);border-color:var(--accent)}
-.node.base{border-style:solid;border-color:var(--ink)}
 .node.comp{border-width:2px;border-color:var(--line)}
 .node.sys{background:var(--warm);border-color:var(--warm-line)}
 .node.hub{border-style:dashed;align-items:center;justify-content:center;text-align:center}
-.node.sel{box-shadow:0 0 0 3px var(--accent)}
 .node.dim{opacity:.22}
 .group{position:absolute;border:1.5px dashed var(--line);border-radius:6px}
 .group span{position:absolute;top:-10px;left:10px;background:var(--sheet);padding:0 6px;font:600 10.5px var(--body);letter-spacing:.08em;text-transform:uppercase}
-.tags{display:flex;gap:4px;margin-top:2px}
+.tags{display:flex;gap:4px;margin-top:2px;flex-wrap:wrap}
 .tag{font:600 10px var(--body);letter-spacing:.06em;padding:1px 6px;border-radius:3px;color:var(--ink)}
 .tag.uts{background:var(--uts)} .tag.uas{background:var(--uas)}
-.node.root .tag{display:none}
 
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px 20px;display:grid;gap:12px}
-.panel .head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
-.panel .meta{font-size:13px;color:var(--muted)}
-.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px}
-.cols>div{min-width:0}
-.panel ul{margin:0;padding-left:18px;display:grid;gap:4px}
-.formula{font:400 13.5px/1.6 var(--mono);background:var(--sheet);border:1px solid var(--grid);border-radius:4px;padding:10px 12px;overflow-x:auto;white-space:pre}
-.q{border-left:3px solid var(--accent);padding-left:10px}
-.q p{margin:4px 0 0}
-.hint{font-size:13px;color:var(--muted);margin:0}
+/* topic sheet */
+.crumb{font-size:13px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.crumb a{color:var(--muted)}
+.thead{display:grid;gap:6px}
+.thead .meta{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13.5px;color:var(--muted)}
+.thead .tag{font-size:11px;padding:2px 8px}
+figure.fig{margin:0;background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:14px;display:grid;gap:8px;overflow-x:auto;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px}
+figure.fig svg{width:100%;height:auto;max-width:760px;min-width:480px;justify-self:center;display:block}
+figure.fig figcaption{font-size:13.5px;color:var(--ink);max-width:80ch;justify-self:center;text-align:center}
+.fig .s{stroke:var(--ink);stroke-width:2;fill:none}
+.fig .t{stroke:var(--ink);stroke-width:1.2;fill:none}
+.fig .a{stroke:var(--accent);stroke-width:2.4;fill:none}
+.fig .w{stroke:var(--warm-line);stroke-width:2.4;fill:none}
+.fig .g{stroke:var(--line);stroke-width:1.2;fill:none}
+.fig .dash{stroke-dasharray:6 5}
+.fig .fa{fill:var(--chain)} .fig .fw{fill:var(--warm)} .fig .fs{fill:var(--surface)} .fig .fi{fill:var(--ink)} .fig .fg{fill:var(--grid)} .fig .fac{fill:var(--accent)}
+.fig text{fill:var(--ink);font:500 13px var(--body)}
+.fig text.m{font:500 12.5px var(--mono)}
+.fig text.h{font:700 15px var(--display);letter-spacing:.02em}
+.fig text.sm{font-size:11.5px}
+.cols{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px}
+.cols>div{min-width:0;display:grid;gap:14px;align-content:start}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:grid;gap:10px;align-content:start}
+.box ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.formula{font:400 13.5px/1.65 var(--mono);background:var(--sheet);border:1px solid var(--grid);border-radius:4px;padding:10px 12px;overflow-x:auto;white-space:pre;margin:0}
+.ex{border-color:var(--warm-line)}
+.ex ol{margin:0;padding-left:20px;display:grid;gap:4px;font-family:var(--mono);font-size:13px}
+.q p{margin:0;padding-left:10px;border-left:3px solid var(--accent)}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pager a{flex:1 1 220px;max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 14px;text-decoration:none;color:var(--ink);display:grid;gap:2px}
+.pager a:hover{border-color:var(--accent)}
+.pager a.next{text-align:right;margin-left:auto}
+.pager small{font-size:12px;color:var(--muted)}
+.pager b{font:700 17px var(--display)}
 
+/* summary + exam */
 .tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 table{border-collapse:collapse;width:100%;min-width:860px;font-size:13.5px}
 th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--grid)}
 th{font:600 12px var(--body);letter-spacing:.06em;text-transform:uppercase;background:var(--sheet)}
 td.m{font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+td a{color:var(--ink);font-weight:600}
 tr:last-child td{border-bottom:0}
-
-.exam{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.exam{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:grid;gap:8px;align-content:start}
 .card ul{margin:0;padding-left:18px;display:grid;gap:4px}
 .card .tag{justify-self:start;font-size:11px;padding:2px 8px}
-section{display:grid;gap:12px}
 .foot{font-size:13px;color:var(--muted)}
-@media (max-width:760px){.cols{grid-template-columns:1fr}}
+
+@media (max-width:900px){
+  #menu-btn{display:inline-flex}
+  .bar .sub{display:none}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  nav.index{position:static;max-height:none;background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:12px 6px}
+  nav.index.closed{display:none}
+  .cols{grid-template-columns:minmax(0,1fr)}
+}
 @media (prefers-reduced-motion:reduce){.node{transition:none}}
 </style>
 </head>
 <body>
 
 
-<div class="wrap">
-  <div class="top">
-    <div>
-      <h1>Peta Konsep Desain Komponen Mesin</h1>
-      <p class="lede">Satu alur pemeriksaan keamanan dipakai untuk semua komponen. Klik setiap kotak untuk melihat rumus, contoh dari materi kuliah, dan pertanyaan pemandu.</p>
-    </div>
-    <div class="filters" role="group" aria-label="Sorot materi ujian">
-      <button id="f-all" data-f="all" aria-pressed="true">Semua materi</button>
-      <button id="f-uts" data-f="uts" aria-pressed="false">Materi UTS</button>
-      <button id="f-uas" data-f="uas" aria-pressed="false">Materi UAS</button>
-    </div>
-  </div>
+<!-- shared arrowheads for every drawing -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="marker" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path style="fill:var(--ink)" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path style="fill:var(--accent)" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path style="fill:var(--warm-line)" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+</svg>
 
-  <div class="mapbox" id="mapbox">
-    <div class="scaler" id="scaler">
-      <div class="stage" id="stage">
-        <svg class="edges" id="edges" viewBox="0 0 1180 880" aria-hidden="true">
-          <defs>
-            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="marker" d="M0,0 L10,5 L0,10 z"/></marker>
-            <marker id="ar-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="marker on" d="M0,0 L10,5 L0,10 z"/></marker>
-          </defs>
-        </svg>
+<header class="bar">
+  <a class="brand" href="#peta">Desain Komponen Mesin</a>
+  <span class="sub">Peta konsep · persiapan UTS dan UAS</span>
+  <span class="grow"></span>
+  <button id="menu-btn" type="button" aria-expanded="false" aria-controls="index">Daftar materi</button>
+</header>
+
+<div class="shell">
+  <nav class="index closed" id="index" aria-label="Daftar materi"></nav>
+
+  <main>
+    <!-- MAP -->
+    <section class="view" id="v-peta" hidden>
+      <div class="top">
+        <div>
+          <h1>Peta Konsep Desain Komponen Mesin</h1>
+          <p class="lede">Satu alur pemeriksaan keamanan dipakai untuk semua komponen. Klik kotak mana pun untuk membuka materinya lengkap dengan gambar, rumus, dan contoh soal.</p>
+        </div>
+        <div class="filters" role="group" aria-label="Sorot materi ujian">
+          <button class="btn" id="f-all" data-f="all" aria-pressed="true">Semua materi</button>
+          <button class="btn" id="f-uts" data-f="uts" aria-pressed="false">Materi UTS</button>
+          <button class="btn" id="f-uas" data-f="uas" aria-pressed="false">Materi UAS</button>
+        </div>
       </div>
-    </div>
-  </div>
-
-  <div class="panel" id="panel" aria-live="polite"></div>
-
-  <section>
-    <h2>Satu alur, sembilan elemen</h2>
-    <p class="lede">Ringkasan untuk belajar: setiap elemen dihitung dengan langkah 1–5 yang sama. Yang berbeda hanya rumus beban, rumus tegangan, dan syarat keamanannya.</p>
-    <div class="tablebox">
-      <table>
-        <thead><tr><th>Elemen</th><th>Langkah 1 · Beban</th><th>Langkah 2 · Tegangan / besaran</th><th>Langkah 4 · Pembanding</th><th>Syarat (nd)</th></tr></thead>
-        <tbody>
-          <tr><td>Poros</td><td class="m">T = 9550·P/n ; M = F·a</td><td class="m">σ = 32M/(πd³) ; τ = 16T/(πd³) ; σ' = √(σ²+3τ²)</td><td class="m">n = Sy/σ'</td><td>2,5–3</td></tr>
-          <tr><td>Pasak</td><td class="m">F = 2T/d</td><td class="m">τ = F/(w·L) ; σb = F/((h/2)·L)</td><td class="m">n = Ssy/τ ; n = Sy/σb</td><td>2,5</td></tr>
-          <tr><td>Roda gigi</td><td class="m">V = π·d·n/60.000 ; Wt = P/V</td><td class="m">σ = Kv·Wt/(F·m·Y)</td><td class="m">n = Sy/σ</td><td>≈ 3</td></tr>
-          <tr><td>Sabuk-V</td><td class="m">F1 − F2 = P/V ; Fb ≈ F1 + F2</td><td class="m">jumlah sabuk Nb ≥ Pd/Pa</td><td class="m">nfs = Nb·Pa/(Pnom·Ks)</td><td>1,1</td></tr>
-          <tr><td>Rantai</td><td class="m">V = N·p·n/60.000</td><td class="m">F = P·Ks/V</td><td class="m">n = Fu/F</td><td>≈ 7</td></tr>
-          <tr><td>Bantalan</td><td class="m">P = fw·R</td><td class="m">L10 = (C/P)³ juta putaran</td><td class="m">Lh = L10·10⁶/(60n)</td><td>Lh ≥ target</td></tr>
-          <tr><td>Baut</td><td class="m">beban per baut = F/n</td><td class="m">σ = F/(n·At) ; τ = F/(n·A)</td><td class="m">n = Sy/σ ; n = Ssy/τ</td><td>2</td></tr>
-          <tr><td>Keling</td><td class="m">beban per keling = F/n</td><td class="m">τ = F/(n·πd²/4) ; σb = F/(n·d·t)</td><td class="m">n = Ssy/τ ; n = Sy/σb</td><td>2</td></tr>
-          <tr><td>Las sudut</td><td class="m">F sejajar las</td><td class="m">τ = F/(0,707·h·Σl)</td><td class="m">n = Ssy/τ</td><td>2</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="hint">Ssy ≈ 0,577·Sy (teori energi distorsi). Satuan: N, mm, MPa (= N/mm²). Ubah N·m menjadi N·mm (× 1000) sebelum memakai rumus tegangan.</p>
-  </section>
-
-  <section>
-    <h2>Persiapan ujian</h2>
-    <div class="exam">
-      <div class="card">
-        <span class="tag uts">UTS · Sub-CPMK 1.1–3.1</span>
-        <h3>Pemahaman konsep</h3>
-        <ul>
-          <li>Etika profesi, K3, dan analisis kasus kegagalan</li>
-          <li>Tahapan proses desain dan spesifikasi teknis</li>
-          <li>Arti faktor keamanan, akibat nilai terlalu kecil atau terlalu besar</li>
-          <li>Tegangan, regangan, jenis beban, konsentrasi tegangan</li>
-          <li>Tresca vs von Mises, material ulet vs getas</li>
-          <li>Fungsi poros dan pasak, peluang inovasinya</li>
-        </ul>
+      <div class="mapbox" id="mapbox">
+        <div class="scaler" id="scaler">
+          <div class="stage" id="stage"><svg class="edges" id="edges" viewBox="0 0 1180 880" aria-hidden="true"></svg></div>
+        </div>
       </div>
-      <div class="card">
-        <span class="tag uas">UAS · Perhitungan</span>
-        <h3>Hitung lalu putuskan</h3>
-        <ul>
-          <li>Poros: diameter minimum, tegangan geser dan lentur</li>
-          <li>Roda gigi: gaya tangensial Wt, tegangan Lewis</li>
-          <li>Keling: diameter minimum, tegangan geser dan tumpu</li>
-          <li>Puli: gaya efektif sabuk F1 − F2</li>
-          <li>Bandingkan n hasil hitungan dengan nd: aman atau tidak aman</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>Kesalahan yang sering terjadi</h3>
-        <ul>
-          <li>Lupa mengubah N·m ke N·mm</li>
-          <li>Lupa membagi beban dengan jumlah baut atau keling</li>
-          <li>Memakai Sy untuk geser, seharusnya Ssy = 0,577·Sy</li>
-          <li>Tertukar d³ (poros) dengan d² (luas keling)</li>
-          <li>Kecepatan keliling: V = π·d·n/60.000 dengan d dalam mm</li>
-          <li>Membalik syarat: aman jika n ≥ nd, bukan sebaliknya</li>
-        </ul>
-      </div>
-    </div>
-  </section>
+      <p class="hint">Garis putus-putus dari Keputusan kembali ke Beban adalah iterasi: jika desain belum aman, ukuran, material, atau beban diubah lalu dihitung ulang.</p>
+    </section>
 
-  <p class="foot">Disusun dari materi kuliah Desain Komponen Mesin, Prodi Pendidikan Teknik Mesin FT Unimed. Rujukan: Shigley (2015), Juvinall &amp; Marshek (2020), Mott (2018), Sularso &amp; Suga (2004).</p>
+    <!-- TOPIC -->
+    <section class="view" id="v-materi" hidden></section>
+
+    <!-- SUMMARY -->
+    <section class="view" id="v-ringkasan" hidden>
+      <div>
+        <h1>Ringkasan Rumus</h1>
+        <p class="lede">Setiap elemen dihitung dengan langkah 1–5 yang sama. Yang berbeda hanya rumus beban, rumus tegangan, dan syarat keamanannya. Klik nama elemen untuk membuka materinya.</p>
+      </div>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th>Elemen</th><th>Langkah 1 · Beban</th><th>Langkah 2 · Tegangan / besaran</th><th>Langkah 4 · Pembanding</th><th>Syarat (nd)</th></tr></thead>
+          <tbody>
+            <tr><td><a href="#poros">Poros</a></td><td class="m">T = 9550·P/n ; M = F·a</td><td class="m">σ = 32M/(πd³) ; τ = 16T/(πd³) ; σ' = √(σ²+3τ²)</td><td class="m">n = Sy/σ'</td><td>2,5–3</td></tr>
+            <tr><td><a href="#poros">Pasak</a></td><td class="m">F = 2T/d</td><td class="m">τ = F/(w·L) ; σb = F/((h/2)·L)</td><td class="m">n = Ssy/τ ; n = Sy/σb</td><td>2,5</td></tr>
+            <tr><td><a href="#bantalan">Bantalan</a></td><td class="m">P = fw·R</td><td class="m">L10 = (C/P)³ juta putaran</td><td class="m">Lh = L10·10⁶/(60n)</td><td>Lh ≥ target</td></tr>
+            <tr><td><a href="#roda-gigi">Roda gigi</a></td><td class="m">V = π·d·n/60.000 ; Wt = P/V</td><td class="m">σ = Kv·Wt/(F·m·Y)</td><td class="m">n = Sy/σ</td><td>≈ 3</td></tr>
+            <tr><td><a href="#sabuk">Sabuk-V</a></td><td class="m">F1 − F2 = P/V ; Fb ≈ F1 + F2</td><td class="m">jumlah sabuk Nb ≥ Pd/Pa</td><td class="m">nfs = Nb·Pa/(Pnom·Ks)</td><td>1,1</td></tr>
+            <tr><td><a href="#sabuk">Rantai</a></td><td class="m">V = N·p·n/60.000</td><td class="m">F = P·Ks/V</td><td class="m">n = Fu/F</td><td>≈ 7</td></tr>
+            <tr><td><a href="#sambungan">Baut</a></td><td class="m">beban per baut = F/n</td><td class="m">σ = F/(n·At) ; τ = F/(n·A)</td><td class="m">n = Sy/σ ; n = Ssy/τ</td><td>2</td></tr>
+            <tr><td><a href="#sambungan">Keling</a></td><td class="m">beban per keling = F/n</td><td class="m">τ = F/(n·πd²/4) ; σb = F/(n·d·t)</td><td class="m">n = Ssy/τ ; n = Sy/σb</td><td>2</td></tr>
+            <tr><td><a href="#sambungan">Las sudut</a></td><td class="m">F sejajar las</td><td class="m">τ = F/(0,707·h·Σl)</td><td class="m">n = Ssy/τ</td><td>2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Ssy ≈ 0,577·Sy (teori energi distorsi). Satuan: N, mm, MPa (= N/mm²). Ubah N·m menjadi N·mm (× 1000) sebelum memakai rumus tegangan.</p>
+    </section>
+
+    <!-- EXAM -->
+    <section class="view" id="v-ujian" hidden>
+      <div>
+        <h1>Persiapan Ujian</h1>
+        <p class="lede">Cakupan UTS dan UAS beserta kesalahan hitung yang paling sering muncul.</p>
+      </div>
+      <div class="exam">
+        <div class="card">
+          <span class="tag uts">UTS · Sub-CPMK 1.1–3.1</span>
+          <h3>Pemahaman konsep</h3>
+          <ul>
+            <li><a href="#etika">Etika profesi, K3, kasus kegagalan</a></li>
+            <li><a href="#proses">Tahapan proses desain dan spesifikasi</a></li>
+            <li><a href="#nd">Faktor keamanan dan nd</a></li>
+            <li><a href="#tegangan">Tegangan, regangan, jenis beban</a></li>
+            <li><a href="#teori">Tresca, von Mises, ulet vs getas</a></li>
+            <li><a href="#poros">Fungsi poros dan pasak, inovasinya</a></li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag uas">UAS · Perhitungan</span>
+          <h3>Hitung lalu putuskan</h3>
+          <ul>
+            <li><a href="#poros">Poros: diameter minimum, tegangan geser dan lentur</a></li>
+            <li><a href="#roda-gigi">Roda gigi: gaya Wt, tegangan Lewis</a></li>
+            <li><a href="#sambungan">Keling: diameter minimum, geser dan tumpu</a></li>
+            <li><a href="#sabuk">Puli: gaya efektif sabuk F1 − F2</a></li>
+            <li><a href="#keputusan">Bandingkan n dengan nd: aman atau tidak</a></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Kesalahan yang sering terjadi</h3>
+          <ul>
+            <li>Lupa mengubah N·m ke N·mm</li>
+            <li>Lupa membagi beban dengan jumlah baut atau keling</li>
+            <li>Memakai Sy untuk geser, seharusnya Ssy = 0,577·Sy</li>
+            <li>Tertukar d³ (poros) dengan d² (luas keling)</li>
+            <li>Kecepatan keliling: V = π·d·n/60.000 dengan d dalam mm</li>
+            <li>Membalik syarat: aman jika n ≥ nd</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <p class="foot">Disusun dari materi kuliah Desain Komponen Mesin, Prodi Pendidikan Teknik Mesin FT Unimed. Rujukan: Shigley (2015), Juvinall &amp; Marshek (2020), Mott (2018), Sularso &amp; Suga (2004). Gambar adalah skema penjelas, tidak berskala.</p>
+  </main>
 </div>
 
+<!-- ============ TECHNICAL DRAWINGS (one per topic) ============ -->
+<template id="fig-etika">
+<svg viewBox="0 0 640 300" role="img" aria-label="Sambungan gantung Hyatt Regency: rancangan awal dan perubahan">
+  <line class="s" x1="20" y1="30" x2="620" y2="30"/>
+  <g class="g"><line x1="30" y1="22" x2="40" y2="30"/><line x1="70" y1="22" x2="80" y2="30"/><line x1="110" y1="22" x2="120" y2="30"/><line x1="150" y1="22" x2="160" y2="30"/><line x1="190" y1="22" x2="200" y2="30"/><line x1="230" y1="22" x2="240" y2="30"/><line x1="270" y1="22" x2="280" y2="30"/><line x1="370" y1="22" x2="380" y2="30"/><line x1="410" y1="22" x2="420" y2="30"/><line x1="450" y1="22" x2="460" y2="30"/><line x1="490" y1="22" x2="500" y2="30"/><line x1="530" y1="22" x2="540" y2="30"/><line x1="570" y1="22" x2="580" y2="30"/><line x1="610" y1="22" x2="620" y2="30"/></g>
+  <text class="h" x="160" y="286" text-anchor="middle">Rancangan awal: satu batang menerus</text>
+  <line class="s" x1="160" y1="30" x2="160" y2="250" style="stroke-width:4"/>
+  <rect class="fs s" x="80" y="110" width="160" height="16"/>
+  <rect class="fs s" x="80" y="210" width="160" height="16"/>
+  <rect class="fa" x="150" y="126" width="20" height="9" style="stroke:var(--accent);stroke-width:1.5"/>
+  <rect class="fa" x="150" y="226" width="20" height="9" style="stroke:var(--accent);stroke-width:1.5"/>
+  <text x="178" y="148">mur atas memikul P</text>
+  <text x="178" y="248">mur bawah memikul P</text>
+  <text class="sm" x="84" y="104">lantai atas</text><text class="sm" x="84" y="204">lantai bawah</text>
+  <line class="g dash" x1="320" y1="40" x2="320" y2="290"/>
+  <text class="h" x="480" y="286" text-anchor="middle">Diubah di lapangan: dua batang</text>
+  <line class="s" x1="460" y1="30" x2="460" y2="136" style="stroke-width:4"/>
+  <line class="s" x1="500" y1="110" x2="500" y2="236" style="stroke-width:4"/>
+  <rect class="fs s" x="390" y="110" width="160" height="16"/>
+  <rect class="fs s" x="390" y="210" width="160" height="16"/>
+  <rect class="fw" x="450" y="126" width="20" height="9" style="stroke:var(--warm-line);stroke-width:2"/>
+  <rect class="fa" x="490" y="226" width="20" height="9" style="stroke:var(--accent);stroke-width:1.5"/>
+  <text x="516" y="164" style="font-weight:600">mur atas memikul 2P</text>
+  <line class="w" x1="514" y1="156" x2="473" y2="134" marker-end="url(#aw)"/>
+  <text x="518" y="248">P</text>
+  <text class="sm" x="394" y="104">lantai atas</text><text class="sm" x="394" y="204">lantai bawah</text>
+</svg>
+</template>
+
+<template id="fig-proses">
+<svg viewBox="0 0 640 260" role="img" aria-label="Enam tahap proses desain dengan iterasi">
+  <g>
+    <rect class="fs s" x="10" y="80" width="92" height="64" rx="4"/><text x="56" y="106" text-anchor="middle" class="sm" style="font-weight:600">1 Identifikasi</text><text x="56" y="124" text-anchor="middle" class="sm">kebutuhan</text>
+    <rect class="fs s" x="114" y="80" width="92" height="64" rx="4"/><text x="160" y="106" text-anchor="middle" class="sm" style="font-weight:600">2 Definisi</text><text x="160" y="124" text-anchor="middle" class="sm">spesifikasi</text>
+    <rect class="fs s" x="218" y="80" width="92" height="64" rx="4"/><text x="264" y="106" text-anchor="middle" class="sm" style="font-weight:600">3 Sintesis</text><text x="264" y="124" text-anchor="middle" class="sm">konsep</text>
+    <rect class="fa" x="322" y="80" width="92" height="64" rx="4" style="stroke:var(--accent);stroke-width:2"/><text x="368" y="106" text-anchor="middle" class="sm" style="font-weight:600">4 Analisis</text><text x="368" y="124" text-anchor="middle" class="sm">beban, σ, n</text>
+    <rect class="fs s" x="426" y="80" width="92" height="64" rx="4"/><text x="472" y="106" text-anchor="middle" class="sm" style="font-weight:600">5 Evaluasi</text><text x="472" y="124" text-anchor="middle" class="sm">uji prototipe</text>
+    <rect class="fs s" x="530" y="80" width="100" height="64" rx="4"/><text x="580" y="106" text-anchor="middle" class="sm" style="font-weight:600">6 Komunikasi</text><text x="580" y="124" text-anchor="middle" class="sm">gambar kerja</text>
+  </g>
+  <g class="t"><line x1="102" y1="112" x2="113" y2="112" marker-end="url(#ak)"/><line x1="206" y1="112" x2="217" y2="112" marker-end="url(#ak)"/><line x1="310" y1="112" x2="321" y2="112" marker-end="url(#ak)"/><line x1="414" y1="112" x2="425" y2="112" marker-end="url(#ak)"/><line x1="518" y1="112" x2="529" y2="112" marker-end="url(#ak)"/></g>
+  <path class="a dash" d="M472,144 L472,200 L264,200 L264,146" marker-end="url(#aa)"/>
+  <text x="368" y="222" text-anchor="middle">iterasi: belum memenuhi spesifikasi, kembali ke konsep atau ukuran</text>
+  <text class="sm" x="10" y="50">Contoh mesin pencacah rumput: 2,2 kW · 1.440 rpm · pisau ± 720 rpm · sabuk-V 2 : 1 · umur bantalan ≥ 20.000 jam</text>
+</svg>
+</template>
+
+<template id="fig-material">
+<svg viewBox="0 0 640 300" role="img" aria-label="Kurva tegangan regangan material ulet dan getas">
+  <line class="s" x1="60" y1="260" x2="610" y2="260" marker-end="url(#ak)"/>
+  <line class="s" x1="60" y1="260" x2="60" y2="20" marker-end="url(#ak)"/>
+  <text x="600" y="282" text-anchor="end">regangan ε</text>
+  <text x="68" y="24">tegangan σ</text>
+  <path class="a" d="M60,260 L140,110 Q170,100 210,96 Q330,60 400,68 Q470,80 520,112"/>
+  <text x="528" y="114" style="font-weight:600">× patah</text>
+  <path class="w" d="M60,260 L175,92"/>
+  <text x="180" y="88" style="font-weight:600">× patah</text>
+  <line class="g dash" x1="60" y1="110" x2="140" y2="110"/><text class="m" x="20" y="114">Sy</text>
+  <line class="g dash" x1="60" y1="64" x2="350" y2="64"/><text class="m" x="20" y="68">Su</text>
+  <path class="t" d="M90,204 L110,204 L110,167"/><text class="m" x="116" y="196">E</text>
+  <line class="g dash" x1="130" y1="260" x2="130" y2="240"/><text class="sm" x="118" y="276">5%</text>
+  <text x="300" y="150" style="font-weight:600">Ulet (baja lunak)</text><text class="sm" x="300" y="168">luluh dulu, memberi peringatan</text><text class="sm" x="300" y="184">dinilai terhadap Sy</text>
+  <text x="200" y="230" style="font-weight:600">Getas (besi tuang)</text><text class="sm" x="200" y="246">patah tiba-tiba, dinilai terhadap Su</text>
+</svg>
+</template>
+
+<template id="fig-nd">
+<svg viewBox="0 0 640 260" role="img" aria-label="Skala faktor desain nd">
+  <rect x="75" y="90" width="105" height="34" class="fa"/>
+  <rect x="180" y="90" width="70" height="34" class="fs" style="stroke:var(--line)"/>
+  <rect x="250" y="90" width="210" height="34" class="fw"/>
+  <rect x="460" y="90" width="150" height="34" class="fg"/>
+  <rect x="40" y="90" width="570" height="34" class="t"/>
+  <text class="sm" x="127" y="80" text-anchor="middle">statis, data andal</text>
+  <text class="sm" x="215" y="66" text-anchor="middle">dinamis,</text><text class="sm" x="215" y="80" text-anchor="middle">data rata-rata</text>
+  <text class="sm" x="355" y="80" text-anchor="middle">ada ketidakpastian</text>
+  <text class="sm" x="535" y="80" text-anchor="middle">kejut, bahaya jiwa</text>
+  <g class="m"><text x="40" y="142" text-anchor="middle">1</text><text x="75" y="142" text-anchor="middle">1,25</text><text x="180" y="142" text-anchor="middle">2</text><text x="250" y="142" text-anchor="middle">2,5</text><text x="460" y="142" text-anchor="middle">4</text><text x="604" y="142" text-anchor="end">5+</text></g>
+  <g class="a"><line x1="54" y1="160" x2="54" y2="128" marker-end="url(#aa)"/><line x1="180" y1="186" x2="180" y2="128" marker-end="url(#aa)"/><line x1="285" y1="160" x2="285" y2="128" marker-end="url(#aa)"/><line x1="320" y1="210" x2="320" y2="128" marker-end="url(#aa)"/><line x1="600" y1="186" x2="600" y2="128" marker-end="url(#aa)"/></g>
+  <text class="sm" x="54" y="176" text-anchor="middle">sabuk-V 1,1</text>
+  <text class="sm" x="180" y="202" text-anchor="middle">baut, keling, las 2</text>
+  <text class="sm" x="285" y="176" text-anchor="middle">poros 2,5</text>
+  <text class="sm" x="320" y="226" text-anchor="middle">poros / roda gigi 3</text>
+  <text class="sm" x="600" y="202" text-anchor="end">rantai ≈ 7 →</text>
+  <text x="40" y="30" style="font-weight:600">n = kekuatan / tegangan ≥ nd</text>
+</svg>
+</template>
+
+<template id="fig-beban">
+<svg viewBox="0 0 640 300" role="img" aria-label="Poros pisau dengan puli overhang dan dua bantalan">
+  <line class="g dash" x1="70" y1="150" x2="600" y2="150"/>
+  <rect class="fs s" x="90" y="138" width="470" height="24"/>
+  <rect class="fa" x="128" y="78" width="26" height="144" style="stroke:var(--accent);stroke-width:2"/>
+  <text x="141" y="70" text-anchor="middle" style="font-weight:600">puli</text>
+  <path class="s fs" d="M270,162 L256,190 L284,190 Z"/><line class="s" x1="250" y1="194" x2="290" y2="194"/>
+  <path class="s fs" d="M520,162 L506,190 L534,190 Z"/><line class="s" x1="500" y1="194" x2="540" y2="194"/>
+  <text x="270" y="212" text-anchor="middle" style="font-weight:600">A</text><text x="520" y="212" text-anchor="middle" style="font-weight:600">B</text>
+  <line class="w" x1="141" y1="230" x2="141" y2="272" marker-end="url(#aw)"/>
+  <text x="152" y="268" style="font-weight:600">Fb = F1 + F2</text>
+  <line class="a" x1="270" y1="122" x2="270" y2="98" marker-start="url(#aa)"/><text x="278" y="104">RA</text>
+  <line class="a" x1="520" y1="98" x2="520" y2="122" marker-end="url(#aa)"/><text x="528" y="104">RB</text>
+  <path class="s" d="M572,128 A22,22 0 1,1 572,172" marker-end="url(#ak)"/><text x="600" y="126">T</text>
+  <line class="t" x1="141" y1="240" x2="270" y2="240" marker-start="url(#ak)" marker-end="url(#ak)"/><text x="205" y="236" text-anchor="middle">a</text>
+  <line class="t" x1="270" y1="240" x2="520" y2="240" marker-end="url(#ak)"/><text x="395" y="236" text-anchor="middle">L</text>
+  <text class="m" x="300" y="36">T = 9550·P/n</text>
+  <text class="m" x="300" y="56">Mmaks = Fb·a  (di bantalan A)</text>
+</svg>
+</template>
+
+<template id="fig-tegangan">
+<svg viewBox="0 0 660 280" role="img" aria-label="Tiga jenis tegangan: tarik, lentur, puntir">
+  <text class="h" x="105" y="36" text-anchor="middle">Tarik / tekan</text>
+  <rect class="fa" x="45" y="120" width="120" height="34" style="stroke:var(--ink);stroke-width:2"/>
+  <line class="a" x1="45" y1="137" x2="12" y2="137" marker-end="url(#aa)"/><line class="a" x1="165" y1="137" x2="198" y2="137" marker-end="url(#aa)"/>
+  <text x="14" y="128">F</text><text x="190" y="128">F</text>
+  <text class="m" x="105" y="200" text-anchor="middle">σ = F / A</text>
+  <text class="sm" x="105" y="220" text-anchor="middle">merata di penampang</text>
+
+  <text class="h" x="330" y="36" text-anchor="middle">Lentur</text>
+  <rect class="fs s" x="255" y="110" width="110" height="54"/>
+  <line class="g dash" x1="245" y1="137" x2="415" y2="137"/>
+  <line class="s" x1="375" y1="105" x2="375" y2="169"/>
+  <path class="a fa" d="M375,110 L415,110 L335,164 L375,164 Z" style="fill-opacity:.6"/>
+  <text class="sm" x="418" y="114">tarik maks</text><text class="sm" x="270" y="184">tekan maks</text><text class="sm" x="418" y="141">sumbu netral</text>
+  <text class="m" x="330" y="216" text-anchor="middle">σ = 32M / (π·d³)</text>
+  <text class="sm" x="330" y="236" text-anchor="middle">maksimum di serat terluar</text>
+
+  <text class="h" x="565" y="36" text-anchor="middle">Puntir</text>
+  <circle class="fs s" cx="565" cy="130" r="48"/>
+  <g class="a"><line x1="565" y1="82" x2="595" y2="84" marker-end="url(#aa)"/><line x1="613" y1="130" x2="611" y2="160" marker-end="url(#aa)"/><line x1="565" y1="178" x2="535" y2="176" marker-end="url(#aa)"/><line x1="517" y1="130" x2="519" y2="100" marker-end="url(#aa)"/></g>
+  <line class="t" x1="565" y1="130" x2="565" y2="82"/><circle class="fi" cx="565" cy="130" r="3"/>
+  <text class="m" x="565" y="216" text-anchor="middle">τ = 16T / (π·d³)</text>
+  <text class="sm" x="565" y="236" text-anchor="middle">maksimum di permukaan</text>
+</svg>
+</template>
+
+<template id="fig-teori">
+<svg viewBox="0 0 640 300" role="img" aria-label="Batas luluh Tresca heksagon di dalam elips von Mises">
+  <line class="g" x1="180" y1="150" x2="470" y2="150" marker-end="url(#ak)"/><line class="g" x1="320" y1="290" x2="320" y2="12" marker-end="url(#ak)"/>
+  <text x="472" y="146">σ1</text><text x="328" y="20">σ2</text>
+  <ellipse class="a fa" cx="320" cy="150" rx="141" ry="81.6" transform="rotate(-45 320 150)" style="fill-opacity:.55"/>
+  <polygon class="s" points="420,150 420,50 320,50 220,150 220,250 320,250" style="stroke-width:2.4"/>
+  <text class="m" x="424" y="166">Sy</text><text class="m" x="326" y="46">Sy</text><text class="m" x="196" y="166">−Sy</text><text class="m" x="326" y="266">−Sy</text>
+  <line class="s" x1="490" y1="70" x2="520" y2="70" style="stroke-width:2.4"/><text x="528" y="74">Tresca</text>
+  <line class="a" x1="490" y1="96" x2="520" y2="96"/><text x="528" y="100">von Mises</text>
+  <text class="sm" x="490" y="130">Di dalam batas: aman.</text>
+  <text class="sm" x="490" y="148">Heksagon selalu di dalam</text>
+  <text class="sm" x="490" y="164">elips: Tresca lebih</text>
+  <text class="sm" x="490" y="180">konservatif.</text>
+  <text class="m" x="20" y="40">σ'T = √(σ²+4τ²)</text>
+  <text class="m" x="20" y="60">σ'VM = √(σ²+3τ²)</text>
+</svg>
+</template>
+
+<template id="fig-faktor">
+<svg viewBox="0 0 640 260" role="img" aria-label="Perbandingan tegangan ekuivalen, batas syarat, dan kekuatan luluh">
+  <text x="20" y="62" style="font-weight:600">σ' = 86,4 MPa</text>
+  <rect class="fa" x="150" y="46" width="125" height="24" style="stroke:var(--accent);stroke-width:1.5"/>
+  <text x="20" y="122" style="font-weight:600">nd·σ' = 216 MPa</text>
+  <rect class="fs" x="150" y="106" width="313" height="24" style="stroke:var(--line);stroke-dasharray:5 4"/>
+  <text x="20" y="182" style="font-weight:600">Sy = 310 MPa</text>
+  <rect class="fw" x="150" y="166" width="450" height="24" style="stroke:var(--warm-line);stroke-width:1.5"/>
+  <line class="g dash" x1="463" y1="96" x2="463" y2="200"/>
+  <text class="sm" x="468" y="96">syarat nd = 2,5</text>
+  <line class="t" x1="463" y1="214" x2="600" y2="214" marker-start="url(#ak)" marker-end="url(#ak)"/>
+  <text class="sm" x="531" y="232" text-anchor="middle">cadangan</text>
+  <text class="m" x="20" y="240">n = 310 / 86,4 = 3,59 ≥ 2,5 → AMAN</text>
+</svg>
+</template>
+
+<template id="fig-keputusan">
+<svg viewBox="0 0 640 260" role="img" aria-label="Diagram alir keputusan aman atau iterasi">
+  <rect class="fa" x="20" y="100" width="130" height="56" rx="4" style="stroke:var(--accent);stroke-width:2"/>
+  <text x="85" y="124" text-anchor="middle" style="font-weight:600">Hitung n</text><text class="m" x="85" y="144" text-anchor="middle">n = S / σ'</text>
+  <polygon class="fs s" points="270,70 345,128 270,186 195,128"/>
+  <text x="270" y="133" text-anchor="middle" style="font-weight:600">n ≥ nd ?</text>
+  <line class="s" x1="150" y1="128" x2="194" y2="128" marker-end="url(#ak)"/>
+  <line class="s" x1="345" y1="128" x2="420" y2="128" marker-end="url(#ak)"/><text x="372" y="120">ya</text>
+  <rect class="fs s" x="420" y="100" width="200" height="56" rx="4"/>
+  <text x="520" y="124" text-anchor="middle" style="font-weight:600">AMAN</text><text class="sm" x="520" y="144" text-anchor="middle">gambar kerja, dokumentasi</text>
+  <line class="w" x1="270" y1="186" x2="270" y2="208" /><text x="280" y="202">tidak</text>
+  <rect class="fw" x="190" y="208" width="270" height="44" rx="4" style="stroke:var(--warm-line);stroke-width:2"/>
+  <text x="325" y="228" text-anchor="middle" style="font-weight:600">Iterasi</text><text class="sm" x="325" y="244" text-anchor="middle">perbesar d / m / F, ganti material, kurangi beban</text>
+  <path class="w dash" d="M190,230 L85,230 L85,158" marker-end="url(#aw)"/>
+  <text class="sm" x="20" y="40">Contoh roda gigi 12 kW: n = 1,32 &lt; 3 → ganti AISI 1045 CD → n = 3,34 ≥ 3</text>
+</svg>
+</template>
+
+<template id="fig-poros">
+<svg viewBox="0 0 640 300" role="img" aria-label="Penampang poros dengan pasak dan naf">
+  <circle class="g" cx="170" cy="160" r="125"/>
+  <circle class="fs s" cx="170" cy="160" r="80"/>
+  <rect class="fw" x="158" y="62" width="24" height="34" style="stroke:var(--warm-line);stroke-width:2"/>
+  <line class="a dash" x1="158" y1="80" x2="200" y2="80"/>
+  <text class="sm" x="206" y="84">bidang geser w·L</text>
+  <text x="166" y="56" text-anchor="middle" class="m">w</text>
+  <line class="t" x1="148" y1="62" x2="148" y2="96" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="128" y="84">h</text>
+  <line class="a" x1="186" y1="104" x2="226" y2="104" marker-end="url(#aa)"/><text x="230" y="110" style="font-weight:600">F = 2T/d</text>
+  <path class="s" d="M118,226 A80,80 0 0,0 222,226" marker-end="url(#ak)"/><text x="170" y="270" text-anchor="middle">T</text>
+  <line class="t" x1="90" y1="160" x2="250" y2="160" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="104" y="154">d</text>
+  <text class="sm" x="262" y="52">naf (roda gigi / puli)</text>
+  <text class="h" x="420" y="60" text-anchor="middle">Pasak, tampak samping</text>
+  <rect class="fw" x="340" y="90" width="170" height="26" style="stroke:var(--warm-line);stroke-width:2"/>
+  <line class="t" x1="340" y1="128" x2="510" y2="128" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="425" y="144" text-anchor="middle">L</text>
+  <text class="m" x="330" y="190">τ  = F / (w·L)</text>
+  <text class="m" x="330" y="212">σb = F / ((h/2)·L)</text>
+  <text class="m" x="330" y="246">d = [32n√(M²+T²)/(π·Sy)]^(1/3)</text>
+</svg>
+</template>
+
+<template id="fig-bantalan">
+<svg viewBox="0 0 640 300" role="img" aria-label="Penampang bantalan bola">
+  <circle class="fg" cx="180" cy="155" r="118"/>
+  <circle class="s fs" cx="180" cy="155" r="96"/>
+  <circle class="fg" cx="180" cy="155" r="60"/>
+  <circle class="s fs" cx="180" cy="155" r="42"/>
+  <circle class="s" cx="180" cy="155" r="118"/><circle class="s" cx="180" cy="155" r="60"/>
+  <g class="fa" style="stroke:var(--accent);stroke-width:1.5">
+    <circle cx="258" cy="155" r="15"/><circle cx="247.5" cy="194" r="15"/><circle cx="219" cy="222.5" r="15"/><circle cx="180" cy="233" r="15"/><circle cx="141" cy="222.5" r="15"/><circle cx="112.5" cy="194" r="15"/><circle cx="102" cy="155" r="15"/><circle cx="112.5" cy="116" r="15"/><circle cx="141" cy="87.5" r="15"/><circle cx="180" cy="77" r="15"/><circle cx="219" cy="87.5" r="15"/><circle cx="247.5" cy="116" r="15"/>
+  </g>
+  <line class="w" x1="180" y1="22" x2="180" y2="150" marker-end="url(#aw)" style="stroke-width:3"/>
+  <text x="190" y="26" style="font-weight:600">R (reaksi poros)</text>
+  <text class="sm" x="330" y="56">cincin luar · bola · cincin dalam · lubang poros</text>
+  <text class="m" x="330" y="110">P   = fw · R</text>
+  <text class="m" x="330" y="136">L10 = (C / P)³   juta putaran</text>
+  <text class="m" x="330" y="162">Lh  = L10·10⁶ / (60·n)   jam</text>
+  <text x="330" y="200" style="font-weight:600">Aman bila Lh ≥ Lh target</text>
+  <text class="sm" x="330" y="222">Beban naik 2× → umur turun menjadi 1/8</text>
+</svg>
+</template>
+
+<template id="fig-roda-gigi">
+<svg viewBox="0 0 640 300" role="img" aria-label="Pasangan roda gigi lurus dengan gaya pada titik kontak">
+  <circle cx="170" cy="150" r="58" style="fill:none;stroke:var(--ink);stroke-width:9;stroke-dasharray:9.1 9.1"/>
+  <circle class="fs s" cx="170" cy="150" r="52"/>
+  <circle class="g dash" cx="170" cy="150" r="55"/>
+  <circle cx="335" cy="150" r="113" style="fill:none;stroke:var(--ink);stroke-width:9;stroke-dasharray:8.87 8.87"/>
+  <circle class="fs s" cx="335" cy="150" r="107"/>
+  <circle class="g dash" cx="335" cy="150" r="110"/>
+  <circle class="fi" cx="170" cy="150" r="4"/><circle class="fi" cx="335" cy="150" r="4"/>
+  <text x="140" y="140" style="font-weight:600">pinion</text><text x="140" y="174" class="m">N1, n1</text>
+  <text x="330" y="140" style="font-weight:600">roda gigi</text><text x="330" y="174" class="m">N2, n2</text>
+  <line class="a" x1="225" y1="150" x2="225" y2="84" marker-end="url(#aa)"/><text x="200" y="80" style="font-weight:600">Wt</text>
+  <line class="w" x1="225" y1="150" x2="190" y2="150" marker-end="url(#aw)"/><text x="198" y="166" style="font-weight:600">Wr</text>
+  <line class="t" x1="170" y1="282" x2="335" y2="282" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="252" y="276" text-anchor="middle">C</text>
+  <line class="g" x1="170" y1="210" x2="170" y2="290"/><line class="g" x1="335" y1="262" x2="335" y2="290"/>
+  <text class="m" x="460" y="60">d = m·N</text>
+  <text class="m" x="460" y="84">i = N2/N1 = n1/n2</text>
+  <text class="m" x="460" y="108">C = m(N1+N2)/2</text>
+  <text class="m" x="460" y="132">Wt = P/V = 2T/d</text>
+  <text class="m" x="460" y="156">Wr = Wt·tan φ</text>
+  <text class="m" x="460" y="190">σ = Kv·Wt/(F·m·Y)</text>
+  <text class="sm" x="460" y="214">garis putus: lingkaran</text><text class="sm" x="460" y="230">jarak bagi (d)</text>
+</svg>
+</template>
+
+<template id="fig-sabuk">
+<svg viewBox="0 0 640 300" role="img" aria-label="Transmisi sabuk dengan sisi kencang dan sisi kendor">
+  <circle class="fs s" cx="140" cy="150" r="40"/><circle class="fi" cx="140" cy="150" r="4"/>
+  <circle class="fs s" cx="440" cy="150" r="90"/><circle class="fi" cx="440" cy="150" r="4"/>
+  <line class="w" x1="133.3" y1="110.6" x2="425" y2="61.3" style="stroke-width:3"/>
+  <line class="a" x1="133.3" y1="189.4" x2="425" y2="238.7" style="stroke-width:3"/>
+  <path class="s" d="M133.3,110.6 A40,40 0 0,0 133.3,189.4" style="stroke-width:3"/>
+  <path class="s" d="M425,61.3 A90,90 0 1,1 425,238.7" style="stroke-width:3"/>
+  <path class="a" d="M118,118 A36,36 0 0,0 118,182" style="stroke-width:1.6"/>
+  <text x="70" y="154" class="m">θ</text>
+  <text x="250" y="72" style="font-weight:600">F1 (sisi kencang)</text>
+  <text x="250" y="236" style="font-weight:600">F2 (sisi kendor)</text>
+  <text x="140" y="214" text-anchor="middle" class="m">d, n1</text><text x="440" y="184" text-anchor="middle" class="m">D, n2</text>
+  <line class="t" x1="140" y1="280" x2="440" y2="280" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="290" y="274" text-anchor="middle">C</text>
+  <text class="m" x="20" y="30">n1/n2 = D/d  ·  F1 − F2 = P/V  ·  Fb ≈ F1 + F2</text>
+</svg>
+</template>
+
+<template id="fig-sambungan">
+<svg viewBox="0 0 640 300" role="img" aria-label="Sambungan tumpang keling dan las sudut">
+  <text class="h" x="170" y="40" text-anchor="middle">Keling pada sambungan tumpang</text>
+  <rect class="fs s" x="30" y="120" width="200" height="16"/>
+  <rect class="fa" x="140" y="136" width="200" height="16" style="stroke:var(--ink);stroke-width:2"/>
+  <rect class="fw" x="177" y="110" width="16" height="52" style="stroke:var(--warm-line);stroke-width:2"/>
+  <ellipse class="fw" cx="185" cy="110" rx="16" ry="7" style="stroke:var(--warm-line);stroke-width:2"/>
+  <ellipse class="fw" cx="185" cy="162" rx="16" ry="7" style="stroke:var(--warm-line);stroke-width:2"/>
+  <line class="a" x1="30" y1="128" x2="4" y2="128" marker-end="url(#aa)"/><text x="8" y="116">F</text>
+  <line class="a" x1="340" y1="144" x2="366" y2="144" marker-end="url(#aa)"/><text x="350" y="132">F</text>
+  <line class="a dash" x1="150" y1="136" x2="230" y2="136"/>
+  <text class="sm" x="120" y="196">bidang geser keling</text>
+  <line class="t" x1="250" y1="120" x2="250" y2="136" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="256" y="132">t</text>
+  <text class="m" x="30" y="234">τ  = F / (n·πd²/4)</text>
+  <text class="m" x="30" y="256">σb = F / (n·d·t)</text>
+  <line class="g dash" x1="390" y1="40" x2="390" y2="290"/>
+  <text class="h" x="520" y="40" text-anchor="middle">Las sudut (fillet)</text>
+  <rect class="fs s" x="420" y="200" width="200" height="20"/>
+  <rect class="fs s" x="480" y="70" width="20" height="130"/>
+  <polygon class="fw" points="500,200 540,200 500,160" style="stroke:var(--warm-line);stroke-width:2"/>
+  <line class="a" x1="500" y1="200" x2="520" y2="180" style="stroke-width:2"/>
+  <text class="m" x="526" y="174">t = 0,707·h</text>
+  <line class="t" x1="500" y1="236" x2="540" y2="236" marker-start="url(#ak)" marker-end="url(#ak)"/><text class="m" x="520" y="254" text-anchor="middle">h</text>
+  <text class="m" x="410" y="282">τ = F / (0,707·h·Σl)</text>
+</svg>
+</template>
+
+<template id="fig-terpadu">
+<svg viewBox="0 0 640 230" role="img" aria-label="Aliran daya dan beban mesin pencacah rumput">
+  <g>
+    <rect class="fs s" x="10" y="60" width="104" height="70" rx="4"/><text x="62" y="86" text-anchor="middle" style="font-weight:600">Motor</text><text class="sm" x="62" y="104" text-anchor="middle">2,2 kW</text><text class="sm" x="62" y="120" text-anchor="middle">1.440 rpm</text>
+    <rect class="fw" x="136" y="60" width="104" height="70" rx="4" style="stroke:var(--warm-line);stroke-width:2.4"/><text x="188" y="86" text-anchor="middle" style="font-weight:600">Sabuk-V</text><text class="sm" x="188" y="104" text-anchor="middle">3 × tipe A</text><text class="sm" x="188" y="120" text-anchor="middle">nfs = 1,36</text>
+    <rect class="fs s" x="262" y="60" width="104" height="70" rx="4"/><text x="314" y="86" text-anchor="middle" style="font-weight:600">Poros</text><text class="sm" x="314" y="104" text-anchor="middle">Ø 25 mm</text><text class="sm" x="314" y="120" text-anchor="middle">n = 6,7</text>
+    <rect class="fs s" x="388" y="60" width="104" height="70" rx="4"/><text x="440" y="86" text-anchor="middle" style="font-weight:600">Bantalan</text><text class="sm" x="440" y="104" text-anchor="middle">UCP205</text><text class="sm" x="440" y="120" text-anchor="middle">134.800 jam</text>
+    <rect class="fs s" x="514" y="60" width="116" height="70" rx="4"/><text x="572" y="86" text-anchor="middle" style="font-weight:600">Rangka</text><text class="sm" x="572" y="104" text-anchor="middle">baut n = 28,6</text><text class="sm" x="572" y="120" text-anchor="middle">las n = 88,7</text>
+  </g>
+  <g class="s"><line x1="114" y1="95" x2="135" y2="95" marker-end="url(#ak)"/><line x1="240" y1="95" x2="261" y2="95" marker-end="url(#ak)"/><line x1="366" y1="95" x2="387" y2="95" marker-end="url(#ak)"/><line x1="492" y1="95" x2="513" y2="95" marker-end="url(#ak)"/></g>
+  <text class="m" x="124" y="160" text-anchor="middle">P, n</text><text class="m" x="250" y="160" text-anchor="middle">Fb = 512 N</text><text class="m" x="376" y="160" text-anchor="middle">RA, RB</text><text class="m" x="502" y="160" text-anchor="middle">F → las</text>
+  <text x="188" y="46" text-anchor="middle" style="font-weight:600">titik kritis</text>
+  <text class="sm" x="10" y="200">Beban keluaran satu komponen menjadi beban masukan komponen berikutnya.</text>
+</svg>
+</template>
+
+<template id="fig-inovasi">
+<svg viewBox="0 0 640 240" role="img" aria-label="Alur dari desain ke program pemberdayaan">
+  <rect class="fa" x="10" y="50" width="130" height="56" rx="4" style="stroke:var(--accent);stroke-width:2"/><text x="75" y="83" text-anchor="middle" style="font-weight:600">Desain</text>
+  <rect class="fs s" x="170" y="50" width="130" height="56" rx="4"/><text x="235" y="83" text-anchor="middle" style="font-weight:600">Prototipe</text>
+  <rect class="fs s" x="330" y="50" width="130" height="56" rx="4"/><text x="395" y="76" text-anchor="middle" style="font-weight:600">Modul</text><text class="sm" x="395" y="94" text-anchor="middle">pelatihan</text>
+  <rect class="fw" x="490" y="50" width="140" height="56" rx="4" style="stroke:var(--warm-line);stroke-width:2"/><text x="560" y="76" text-anchor="middle" style="font-weight:600">Paket usaha</text><text class="sm" x="560" y="94" text-anchor="middle">mesin + pelatihan</text>
+  <g class="s"><line x1="140" y1="78" x2="169" y2="78" marker-end="url(#ak)"/><line x1="300" y1="78" x2="329" y2="78" marker-end="url(#ak)"/><line x1="460" y1="78" x2="489" y2="78" marker-end="url(#ak)"/></g>
+  <g class="a"><line x1="395" y1="106" x2="230" y2="160" marker-end="url(#aa)"/><line x1="395" y1="106" x2="395" y2="160" marker-end="url(#aa)"/><line x1="395" y1="106" x2="560" y2="160" marker-end="url(#aa)"/></g>
+  <rect class="fs s" x="170" y="162" width="120" height="40" rx="4"/><text x="230" y="187" text-anchor="middle">Siswa SMK</text>
+  <rect class="fs s" x="335" y="162" width="120" height="40" rx="4"/><text x="395" y="187" text-anchor="middle">Bengkel UMKM</text>
+  <rect class="fs s" x="500" y="162" width="120" height="40" rx="4"/><text x="560" y="187" text-anchor="middle">Peternak</text>
+  <text class="sm" x="10" y="30">Edutechnopreneurship: hasil rancangan menjadi produk dan program diklat vokasi</text>
+</svg>
+</template>
+
 <script>
-const NODES = [
- {id:"root",kind:"root",x:410,y:14,w:360,h:66,title:"Merancang komponen mesin",line:"aman · andal · ekonomis",tags:[],
-  meta:"Gambaran besar mata kuliah",
-  body:["Desain komponen mesin adalah proses menentukan bentuk, ukuran, material, dan proses pembuatan elemen mesin agar mampu menahan beban kerja dengan aman, andal, dan ekonomis sepanjang umur pakainya.","Baris atas peta adalah landasan. Baris tengah adalah lima langkah pemeriksaan keamanan. Baris bawah adalah elemen mesin dan perancangan terpadu.","Kunci mata kuliah ini: lima langkah yang sama dipakai untuk poros, roda gigi, sabuk, bantalan, baut, keling, dan las."],
-  formula:"Tujuan akhir setiap perhitungan:\n  n = kekuatan / tegangan  ≥  nd",
-  q:["Mengapa satu alur lima langkah bisa dipakai untuk komponen yang bentuknya sangat berbeda?","Apa yang terjadi pada sebuah mesin jika satu saja komponennya tidak memenuhi n ≥ nd?"]},
- {id:"etika",kind:"base",x:30,y:118,w:240,h:92,title:"Etika profesi & K3",line:"keselamatan publik di atas segalanya",tags:["uts"],
-  meta:"Pertemuan 1–2 · Sub-CPMK 1.1–1.2",
-  body:["Perancang bertanggung jawab atas kebenaran perhitungan, tidak memanipulasi data material, dan mematuhi standar (SNI/ISO).","Kasus Hyatt Regency (1981): sambungan diubah pabrikator tanpa dievaluasi ulang, beban pada mur menjadi dua kali lipat, 114 orang meninggal.","Kasus lokal: pengunci regulator LPG dan kopling blender yang gagal karena perancang mengabaikan perilaku pengguna dan beban kejut.","K3 dalam desain: pelindung sabuk, rantai, dan pisau; saklar darurat; mutu las tanpa cacat."],
-  formula:"Root-cause analysis:\n  gejala → penyebab langsung → penyebab mendasar → perbaikan desain",
-  q:["Pada kasus Hyatt Regency, keputusan siapa yang seharusnya mencegah kegagalan, dan pada tahap desain yang mana?","Mengapa pasak atau kopling kadang sengaja dibuat lebih lemah dari poros?"]},
- {id:"proses",kind:"base",x:330,y:118,w:240,h:92,title:"Proses desain",line:"iteratif, bukan sekali jadi",tags:["uts","uas"],
-  meta:"Pertemuan 3 · Sub-CPMK 2.1",
-  body:["Tahapan (Shigley, Bab 1): identifikasi kebutuhan, definisi masalah, sintesis, analisis dan optimasi, evaluasi, komunikasi.","Spesifikasi teknis berisi besaran terukur: daya, putaran, beban, dimensi, umur, material, biaya.","Hasil analisis dapat memaksa perancang kembali ke tahap pemilihan material atau geometri."],
-  formula:"Kebutuhan  →  Spesifikasi  →  Konsep  →  Analisis\n    ↑                                        ↓\n    └──────────  Evaluasi  ←─────────────────┘",
-  q:["Apa beda kebutuhan (need) dengan spesifikasi teknis? Beri contoh dari mesin pencacah rumput.","Mengapa proses desain disebut iteratif?"]},
- {id:"material",kind:"base",x:690,y:118,w:240,h:92,title:"Material",line:"Sy · Su · ulet atau getas",tags:["uts","uas"],
-  meta:"Pertemuan 3–6",
-  body:["Sifat dari uji tarik: kekuatan luluh Sy, kekuatan tarik Su, modulus elastisitas E, keuletan.","Ulet (regangan patah ≥ 5%) dianggap gagal saat mulai luluh, jadi dibandingkan dengan Sy. Getas (< 5%) gagal dengan patah, jadi dibandingkan dengan Su; kekuatan tekannya jauh lebih besar dari kekuatan tariknya.","Data yang dipakai di kelas: AISI 1020 HR Sy = 210 MPa, 1030 HR 260 MPa, 1045 CD 530 MPa; baut kelas 4.6 Sy = 240 MPa; elektroda E60xx Sy = 345 MPa."],
-  formula:"Kekuatan geser luluh (ulet):\n  Ssy ≈ 0,577 · Sy",
-  q:["Mengapa poros baja dinilai terhadap Sy, bukan Su?","Mengapa besi tuang kelabu tidak boleh dievaluasi dengan teori von Mises?"]},
- {id:"pedoman",kind:"base",x:950,y:118,w:210,h:92,title:"Pedoman nd",line:"syarat keamanan minimum",tags:["uts","uas"],
-  meta:"Faktor desain (Mott, 2018)",
-  body:["nd ditetapkan sebelum desain berdasarkan kondisi pemakaian. n dihitung sesudah ukuran dan material ditentukan.","1,25–2,0: beban statis, data andal. 2,0–2,5: beban dinamis, data rata-rata. 2,5–4,0: ada ketidakpastian. ≥ 4: beban kejut atau kegagalan membahayakan jiwa.","Nilai di materi kuliah: poros 2,5–3; roda gigi (Lewis) ≈ 3; baut, keling, las 2; sabuk-V 1,1; rantai ≈ 7."],
-  formula:"nd terlalu kecil  →  berisiko gagal\nnd terlalu besar  →  berat, boros, mahal (overdesign)",
+/* ---------- content ---------- */
+const T = {
+ etika:{group:"Landasan",title:"Etika profesi & K3",line:"keselamatan publik di atas segalanya",tags:["uts"],meta:"Pertemuan 1–2 · Sub-CPMK 1.1–1.2",
+  cap:"Kasus Hyatt Regency (1981): satu batang menerus diganti dua batang agar mudah dipasang. Mur di bawah lantai atas kini memikul beban dua lantai, sambungan jebol, 114 orang meninggal.",
+  body:["Perancang bertanggung jawab atas kebenaran perhitungan, tidak memanipulasi data material, dan mematuhi standar (SNI/ISO).","Setiap perubahan desain di lapangan, sekecil apa pun, wajib dievaluasi ulang oleh perancang.","Kasus lokal: pengunci regulator LPG dan kopling blender gagal karena perancang mengabaikan perilaku pengguna dan beban kejut.","K3 dalam desain: pelindung sabuk, rantai, dan pisau; saklar darurat; mutu las tanpa cacat."],
+  formula:"Root-cause analysis:\n  gejala → penyebab langsung → penyebab mendasar\n         → perbaikan desain",
+  exT:"Analisis kasus Hyatt Regency",ex:["Gejala: sambungan lantai gantung jebol","Penyebab langsung: mur di bawah lantai atas menerima 2P","Penyebab mendasar: perubahan detail tidak dievaluasi ulang","Pelajaran: setiap perubahan wajib dihitung ulang"],
+  q:["Keputusan siapa yang seharusnya mencegah kegagalan Hyatt Regency, dan pada tahap desain yang mana?","Mengapa pasak atau kopling kadang sengaja dibuat lebih lemah dari poros?"]},
+ proses:{group:"Landasan",title:"Proses desain",line:"iteratif, bukan sekali jadi",tags:["uts","uas"],meta:"Pertemuan 3 · Sub-CPMK 2.1",
+  cap:"Enam tahap proses desain (Shigley, Bab 1). Tahap analisis menghitung beban, tegangan, dan faktor keamanan; hasil evaluasi bisa memaksa kembali ke tahap konsep.",
+  body:["Tahapan: identifikasi kebutuhan, definisi masalah, sintesis, analisis dan optimasi, evaluasi, komunikasi.","Spesifikasi teknis berisi besaran terukur: daya, putaran, beban, dimensi, umur, material, biaya.","Hasil analisis dapat memaksa perancang kembali ke tahap pemilihan material atau geometri."],
+  formula:"Kebutuhan → Spesifikasi → Konsep → Analisis\n    ↑                                  ↓\n    └────────── Evaluasi ←─────────────┘",
+  exT:"Mesin pencacah rumput",ex:["Kebutuhan: peternak mencacah rumput secara manual","Spesifikasi: 2,2 kW; 1.440 rpm; pisau ± 720 rpm","Konsep: sabuk-V 2 : 1, poros pisau, bantalan UCP","Analisis: sabuk → poros → bantalan → baut → las"],
+  q:["Apa beda kebutuhan (need) dengan spesifikasi teknis?","Mengapa proses desain disebut iteratif?"]},
+ material:{group:"Landasan",title:"Material",line:"Sy · Su · ulet atau getas",tags:["uts","uas"],meta:"Pertemuan 3–6",
+  cap:"Kurva tegangan–regangan. Material ulet luluh lebih dulu sehingga dinilai terhadap Sy; material getas patah tiba-tiba sehingga dinilai terhadap Su.",
+  body:["Sifat dari uji tarik: kekuatan luluh Sy, kekuatan tarik Su, modulus elastisitas E (kemiringan garis lurus), keuletan.","Ulet bila regangan patah ≥ 5%; getas bila < 5%. Material getas jauh lebih kuat ditekan daripada ditarik.","Data kelas: AISI 1020 HR Sy = 210 MPa; 1030 HR 260 MPa; 1045 CD 530 MPa; baut kelas 4.6 Sy = 240 MPa; elektroda E60xx Sy = 345 MPa."],
+  formula:"Hukum Hooke:  σ = E·ε\nKekuatan geser luluh (ulet):\n  Ssy ≈ 0,577·Sy",
+  exT:"Menghitung Ssy",ex:["Keling Sy = 220 MPa","Ssy = 0,577 × 220 = 127 MPa","Elektroda E60xx: Ssy = 0,577 × 345 = 199 MPa"],
+  q:["Mengapa poros baja dinilai terhadap Sy, bukan Su?","Mengapa besi tuang kelabu tidak dievaluasi dengan teori von Mises?"]},
+ nd:{group:"Landasan",title:"Pedoman nd",line:"syarat keamanan minimum",tags:["uts","uas"],meta:"Faktor desain (Mott, 2018)",
+  cap:"Rentang faktor desain nd menurut kondisi perancangan, dan nilai yang dipakai untuk setiap elemen di materi kuliah.",
+  body:["nd (design factor) ditetapkan sebelum desain berdasarkan kondisi pemakaian. n (safety factor) dihitung sesudah ukuran dan material ditentukan.","Makin besar ketidakpastian beban, material, atau akibat kegagalan, makin besar nd.","nd terlalu besar membuat komponen berat, boros, dan mahal (overdesign)."],
+  formula:"n = kekuatan / tegangan  ≥  nd\n\n1,25–2,0  statis, data andal\n2,0–2,5   dinamis, data rata-rata\n2,5–4,0   ada ketidakpastian\n≥ 4       kejut, bahaya jiwa",
+  exT:"Pilihan nd pada mesin pencacah",ex:["Sabuk: nd = 1,1 (Shigley)","Poros: nd = 3 (lelah dan kejut belum dihitung)","Baut dan las: nd = 2"],
   q:["Mengapa nd rantai (≈ 7) jauh lebih besar daripada nd sambungan las (2)?","Kondisi apa yang membuat perancang menaikkan nd?"]},
- {id:"c1",kind:"chain",x:40,y:272,w:172,h:124,step:"Langkah 1",title:"Beban",line:"penampang kritis dan gaya yang bekerja",f:"T = 9550·P/n",tags:["uts","uas"],
-  meta:"Langkah 1 dari 5",
-  body:["Tentukan penampang kritis dan beban yang bekerja: gaya F, momen lentur M, torsi T.","Daya dan putaran menghasilkan torsi. Torsi pada diameter tertentu menghasilkan gaya keliling.","Beban keluaran satu komponen menjadi beban masukan komponen berikutnya (sabuk → poros → bantalan)."],
-  formula:"T = 9550 · P / n        (P dalam kW, n dalam rpm, T dalam N·m)\nF = 2T / d\nM = F · a               (gaya di ujung overhang)\n1 N·m = 1000 N·mm",
+ beban:{group:"Lima langkah",step:"Langkah 1",title:"Beban",line:"penampang kritis dan gaya yang bekerja",f:"T = 9550·P/n",tags:["uts","uas"],meta:"Langkah 1 dari 5",
+  cap:"Poros pisau mesin pencacah: tarikan sabuk Fb di ujung overhang menimbulkan momen lentur terbesar di bantalan A, sementara torsi T diteruskan ke pisau.",
+  body:["Tentukan penampang kritis dan beban yang bekerja: gaya F, momen lentur M, torsi T.","Daya dan putaran menghasilkan torsi. Torsi pada diameter tertentu menghasilkan gaya keliling.","Beban keluaran satu komponen menjadi beban masukan komponen berikutnya."],
+  formula:"T = 9550·P/n      (P kW, n rpm → N·m)\nF = 2T/d\nM = F·a\n1 N·m = 1000 N·mm",
+  exT:"Poros pisau mesin pencacah",ex:["T = 9550 × 2,2 / 720 = 29,2 N·m","Fb = 512 N, overhang a = 80 mm","Mmaks = Fb·a = 512 × 0,08 = 41,0 N·m","RA = 648 N; RB = 137 N"],
   q:["Jika daya tetap tetapi putaran diturunkan, apa yang terjadi pada torsi poros?","Mengapa kesalahan di langkah 1 terbawa ke seluruh desain?"]},
- {id:"c2",kind:"chain",x:272,y:272,w:172,h:124,step:"Langkah 2",title:"Tegangan",line:"normal σ dan geser τ",f:"σ = F/A   τ = V/A",tags:["uts","uas"],
-  meta:"Langkah 2 dari 5 · Pertemuan 4–5",
-  body:["Hitung tegangan normal σ dan tegangan geser τ di titik kritis.","Jenis beban: tarik/tekan, geser, lentur, puntir; statis atau dinamis (berulang).","Konsentrasi tegangan muncul di alur pasak, fillet, lubang, dan ulir, sehingga tegangan lokal naik."],
-  formula:"Poros pejal:\n  σ = 32M / (π·d³)      τ = 16T / (π·d³)\nKonsentrasi tegangan:\n  Kt = σmaks / σnominal",
+ tegangan:{group:"Lima langkah",step:"Langkah 2",title:"Tegangan",line:"normal σ dan geser τ",f:"σ = F/A   τ = V/A",tags:["uts","uas"],meta:"Langkah 2 dari 5 · Pertemuan 4–5",
+  cap:"Tarik menghasilkan tegangan merata. Lentur menghasilkan tegangan terbesar di serat terluar dan nol di sumbu netral. Puntir menghasilkan tegangan geser terbesar di permukaan.",
+  body:["Hitung tegangan normal σ dan tegangan geser τ di titik kritis.","Jenis beban: tarik/tekan, geser, lentur, puntir; statis atau dinamis (berulang).","Konsentrasi tegangan muncul di alur pasak, fillet, lubang, dan ulir: Kt = σmaks/σnominal."],
+  formula:"σ = 32M / (π·d³)\nτ = 16T / (π·d³)\nKt = σmaks / σnominal",
+  exT:"Poros d = 30 mm, M = 150 N·m, T = 200 N·m",ex:["σ = 32 × 150.000 / (π × 30³) = 56,6 MPa","τ = 16 × 200.000 / (π × 30³) = 37,7 MPa"],
   q:["Di bagian mana tegangan lentur poros paling besar?","Bagaimana cara menurunkan konsentrasi tegangan pada poros bertingkat?"]},
- {id:"c3",kind:"chain",x:504,y:272,w:172,h:124,step:"Langkah 3",title:"Teori kegagalan",line:"gabungkan σ dan τ menjadi satu σ'",f:"σ' = √(σ²+3τ²)",tags:["uts"],
-  meta:"Langkah 3 dari 5 · Pertemuan 6",
+ teori:{group:"Lima langkah",step:"Langkah 3",title:"Teori kegagalan",line:"gabungkan σ dan τ menjadi satu σ'",f:"σ' = √(σ²+3τ²)",tags:["uts"],meta:"Langkah 3 dari 5 · Pertemuan 6",
+  cap:"Batas luluh pada bidang tegangan utama σ1–σ2. Heksagon Tresca selalu berada di dalam elips von Mises, sehingga Tresca memberi hasil yang lebih konservatif.",
   body:["Uji tarik hanya memberi satu angka (Sy), padahal komponen nyata menerima beberapa tegangan sekaligus. Teori kegagalan menggabungkannya menjadi satu tegangan ekuivalen σ'.","Ulet: Tresca (tegangan geser maksimum) lebih konservatif; von Mises (energi distorsi) paling sesuai data uji dan dipakai di software CAD/FEA.","Getas: tegangan normal maksimum, Coulomb-Mohr, Mohr termodifikasi."],
-  formula:"Tresca:     σ' = √(σ² + 4τ²)\nvon Mises:  σ' = √(σ² + 3τ²)\nHeksagon Tresca selalu berada di dalam elips von Mises.",
-  q:["Untuk poros yang sama, mengapa n menurut Tresca selalu lebih kecil daripada n menurut von Mises?","Kapan perancang memilih Tresca, dan kapan von Mises?"]},
- {id:"c4",kind:"chain",x:736,y:272,w:172,h:124,step:"Langkah 4",title:"Faktor keamanan",line:"bandingkan dengan kekuatan material",f:"n = Sy / σ'",tags:["uts","uas"],
-  meta:"Langkah 4 dari 5",
+  formula:"Tresca:     σ' = √(σ² + 4τ²)\nvon Mises:  σ' = √(σ² + 3τ²)",
+  exT:"Lanjutan contoh poros d = 30 mm",ex:["Tresca: σ' = √(56,6² + 4×37,7²) = 94,3 MPa","von Mises: σ' = √(56,6² + 3×37,7²) = 86,4 MPa"],
+  q:["Untuk poros yang sama, mengapa n menurut Tresca selalu lebih kecil?","Kapan perancang memilih Tresca, dan kapan von Mises?"]},
+ faktor:{group:"Lima langkah",step:"Langkah 4",title:"Faktor keamanan",line:"bandingkan dengan kekuatan material",f:"n = Sy / σ'",tags:["uts","uas"],meta:"Langkah 4 dari 5",
+  cap:"Poros AISI 1045 HR (Sy = 310 MPa) dengan σ' = 86,4 MPa. Kekuatan material melewati batas syarat nd·σ', sehingga masih ada cadangan.",
   body:["Faktor keamanan membandingkan kekuatan material dengan tegangan yang terjadi.","Bentuknya menyesuaikan elemen: n = Sy/σ' (poros), n = Ssy/τ (geser keling, las), n = Fu/F (rantai), nfs (sabuk), atau umur Lh dibanding target (bantalan)."],
-  formula:"n = kekuatan / tegangan\n  luluh:  n = Sy / σ'\n  geser:  n = Ssy / τ     (Ssy = 0,577·Sy)",
+  formula:"n = kekuatan / tegangan\n  luluh:  n = Sy / σ'\n  geser:  n = Ssy / τ",
+  exT:"Lanjutan contoh poros d = 30 mm",ex:["n Tresca = 310 / 94,3 = 3,29","n von Mises = 310 / 86,4 = 3,59","Keduanya ≥ 2,5 → AMAN"],
   q:["Apa arti fisik n = 1?","Mengapa pada pemeriksaan geser dipakai Ssy, bukan Sy?"]},
- {id:"c5",kind:"chain",x:968,y:272,w:172,h:124,step:"Langkah 5",title:"Keputusan",line:"aman, atau ubah desain",f:"n ≥ nd ?",tags:["uts","uas"],
-  meta:"Langkah 5 dari 5 · Pertemuan 7",
-  body:["n ≥ nd: desain AMAN. n < nd: TIDAK AMAN, lakukan iterasi.","Pilihan perbaikan: perbesar ukuran (d, modul, lebar gigi, jumlah baut), ganti material yang lebih kuat, atau kurangi beban.","Contoh roda gigi: daya naik ke 12 kW membuat n = 1,32 < 3. Mengganti material ke AISI 1045 CD menaikkan n menjadi 3,34 tanpa mengubah ukuran."],
-  formula:"n ≥ nd   →  AMAN\nn < nd   →  ubah d / m / F / material / beban, hitung ulang",
-  q:["Di antara tiga pilihan perbaikan, mana yang paling murah untuk roda gigi pada contoh 12 kW, dan mengapa?","Apakah n yang sangat besar (misalnya 88) selalu baik?"]},
- {id:"hub",kind:"hub",x:460,y:432,w:260,h:72,title:"Elemen mesin",line:"dianalisis dengan langkah 1–5 yang sama",tags:["uts","uas"],
-  meta:"Penghubung ke bagian komponen",
-  body:["Elemen transmisi: roda gigi, sabuk-puli, rantai. Penumpu putaran: poros, pasak, bantalan. Pengikat: baut, keling, las.","Semua elemen melewati langkah 1–5 yang sama. Yang berbeda hanya rumus beban, rumus tegangan, dan nilai nd."],
-  formula:"Rumus berbeda, alur sama:\n  beban → tegangan → σ' → n → keputusan",
-  q:["Sebutkan satu elemen yang syarat keamanannya bukan berupa n, melainkan umur."]},
- {id:"gear",kind:"comp",x:45,y:560,w:220,h:96,title:"Roda gigi",line:"Wt dari daya, tegangan Lewis",f:"σ = Kv·Wt/(F·m·Y)",tags:["uas"],
-  meta:"Pertemuan 10–11 · Sub-CPMK 4.1",
-  body:["Ukuran gigi ditentukan modul m. Dua roda gigi hanya bisa berpasangan bila modul dan sudut tekannya sama.","Wt (tangensial) meneruskan daya dan dipakai untuk tegangan gigi. Wr (radial) mendorong kedua roda gigi saling menjauh. Keduanya menjadi beban poros dan bantalan.","Mode gagal: patah gigi (lentur), pitting, aus. Lewis memeriksa patah lentur, dengan nd ≈ 3 terhadap Sy."],
-  formula:"d = m·N        p = π·m        i = N2/N1 = n1/n2\nC = m(N1 + N2)/2\nV = π·d·n / 60.000          (m/s)\nWt = P/V = 2T/d      Wr = Wt·tan φ\nKv = (6,1 + V)/6,1\nσ = Kv·Wt / (F·m·Y)      n = Sy/σ",
-  q:["Tiga cara menaikkan n gigi tanpa mengubah rasio transmisi, dan apa konsekuensinya?","Mengapa pinion sebaiknya memiliki minimal 18 gigi?"]},
- {id:"belt",kind:"comp",x:45,y:676,w:220,h:96,title:"Sabuk-puli & rantai",line:"selisih tarikan meneruskan daya",f:"F1 − F2 = P/V",tags:["uas"],
-  meta:"Pertemuan 12 · Sub-CPMK 4.2",
-  body:["Sabuk meredam kejut, murah, senyap, tetapi bisa slip. Rantai tidak slip dan kuat, tetapi perlu pelumasan dan lebih bising.","Daya diteruskan oleh selisih tarikan F1 − F2. Poros menerima beban Fb ≈ F1 + F2 yang jauh lebih besar.","Sabuk aman bila nfs ≥ 1,1; rantai aman bila n = Fu/F ≥ 7. Wajib memakai pelindung (guard)."],
-  formula:"n1/n2 = D/d           V = π·d·n / 60.000\nF1 − F2 = P/V         T = (F1 − F2)·d/2\nF1/F2 = e^(0,5123·θ)   (sabuk-V)\nFb ≈ F1 + F2\nnfs = Nb·Pa / (Pnom·Ks)\nRantai: F = P·Ks/V     n = Fu/F",
-  q:["Mengapa sabuk yang dikencangkan berlebihan membuat bantalan cepat rusak?","Pada mesin pencacah, mengapa sabuk menjadi komponen paling kritis?"]},
- {id:"poros",kind:"comp",x:360,y:566,w:220,h:116,title:"Poros & pasak",line:"menahan torsi dan lentur",f:"d = [32n√(M²+T²)/(πSy)]^⅓",tags:["uts","uas"],
-  meta:"Pertemuan 7–8 · Sub-CPMK 3.1",
+ keputusan:{group:"Lima langkah",step:"Langkah 5",title:"Keputusan",line:"aman, atau ubah desain",f:"n ≥ nd ?",tags:["uts","uas"],meta:"Langkah 5 dari 5 · Pertemuan 7",
+  cap:"Jika n ≥ nd desain dinyatakan aman. Jika tidak, desain diubah lalu dihitung ulang sampai memenuhi syarat.",
+  body:["n ≥ nd: desain AMAN. n < nd: TIDAK AMAN, lakukan iterasi.","Pilihan perbaikan: perbesar ukuran (d, modul, lebar gigi, jumlah baut), ganti material yang lebih kuat, atau kurangi beban.","n yang sangat besar juga perlu ditinjau: komponen mungkin terlalu berat dan mahal."],
+  formula:"n ≥ nd   →  AMAN\nn < nd   →  ubah d / m / F / material / beban\n            lalu hitung ulang",
+  exT:"Roda gigi, daya naik menjadi 12 kW",ex:["Wt = 2.634 N; σ = 158,8 MPa","n = 210 / 158,8 = 1,32 < 3 → TIDAK AMAN","Modul 4, F = 40 mm: n = 2,74 (belum aman)","AISI 1045 CD, ukuran tetap: n = 3,34 → AMAN"],
+  q:["Di antara pilihan perbaikan, mana yang paling efisien pada contoh 12 kW, dan mengapa?","Apakah n yang sangat besar (misalnya 88) selalu baik?"]},
+ poros:{group:"Elemen mesin",title:"Poros & pasak",line:"menahan torsi dan lentur",f:"d = [32n√(M²+T²)/(πSy)]^⅓",tags:["uts","uas"],meta:"Pertemuan 7–8 · Sub-CPMK 3.1",
+  cap:"Penampang poros dengan pasak. Gaya F = 2T/d bekerja pada pasak; pasak diperiksa terhadap geser pada bidang w·L dan tekanan tumpu pada sisi setinggi h/2.",
   body:["Poros meneruskan daya dan putaran. Pasak meneruskan torsi dari poros ke naf roda gigi atau puli.","Pasak diperiksa terhadap geser dan tumpu (crushing). Tumpu biasanya yang menentukan karena luas bidangnya lebih kecil.","Inovasi: baja paduan dan pengerasan permukaan, poros berongga atau komposit, sambungan tanpa pasak (spline, shrink fit), optimasi berbasis FEA."],
-  formula:"Diameter minimum (Tresca):\n  d = [ 32·n·√(M² + T²) / (π·Sy) ]^(1/3)\nPuntir murni:\n  d = ( 16T / (π·τizin) )^(1/3)\nPasak:  F = 2T/d\n  τ = F/(w·L)      σb = F/((h/2)·L)",
-  q:["Contoh di kelas: d = 30 mm, M = 150 N·m, T = 200 N·m, Sy = 310 MPa. Mengapa poros dinyatakan aman menurut kedua teori?","Mengapa pasak sengaja dibuat lebih lemah daripada poros?"]},
- {id:"bear",kind:"comp",x:640,y:566,w:220,h:116,title:"Bantalan",line:"menumpu poros, dinilai dari umur",f:"L10 = (C/P)³",tags:["uas"],
-  meta:"Pertemuan 9–10 · Sub-CPMK 3.2",
-  body:["Jenis: bola, rol, luncur. Bantalan menerima reaksi RA dan RB dari poros.","Bantalan tidak dinilai dengan n, melainkan dengan umur: umur hitung harus melebihi umur target.","Pada mesin pencacah, ukuran UCP205 ditentukan oleh diameter poros Ø 25 mm, bukan oleh beban."],
-  formula:"P = fw · R              (beban ekuivalen)\nL10 = (C/P)³            (juta putaran, bantalan bola)\nLh = L10·10⁶ / (60·n)   (jam)\nAman bila Lh ≥ Lh target",
-  q:["Mengapa syarat bantalan berupa umur, bukan faktor keamanan?","Jika beban P dinaikkan dua kali, umur bantalan bola turun menjadi berapa bagian?"]},
- {id:"joint",kind:"comp",x:920,y:566,w:240,h:116,title:"Sambungan",line:"baut · keling · las",f:"τ = F/(n·A)",tags:["uas"],
-  meta:"Pertemuan 13 · Sub-CPMK 4.2",
-  body:["Baut dapat dilepas; kekuatannya bertumpu pada gaya jepit (preload). Keling dan las bersifat permanen.","Keling diperiksa terhadap geser keling, tumpu pelat, tarik pelat, dan jarak tepi (≥ 1,5–2d). Mode dengan n terkecil adalah titik kritis.","Las sudut gagal melalui leher las. Mutu las dan cacat las menentukan umur rangka yang bergetar."],
-  formula:"Baut:   σ = F/(n·At)     τ = F/(n·A)\n        Fi = 0,75·At·Sp   T = K·Fi·d  (K ≈ 0,2)\nKeling: τ = F/(n·πd²/4)   σb = F/(n·d·t)\n        σ pelat = F/((w − d)·t)\nLas:    τ = F/(0,707·h·Σl)\nn = Ssy/τ ≥ 2      Ssy = 0,577·Sy",
-  q:["Contoh kelas: 2 keling Ø 10 mm menahan 12 kN dan tidak aman (n = 1,66). Mengapa mengganti ke Ø 12 mm cukup?","Kapan memilih baut, keling, atau las?"]},
- {id:"sys",kind:"sys",x:360,y:760,w:500,h:96,title:"Perancangan terpadu",line:"motor → sabuk → poros → bantalan → rangka",f:"komponen dengan n terkecil = titik kritis",tags:["uas"],
-  meta:"Pertemuan 14 · studi kasus mesin pencacah rumput",
-  body:["Urutan perhitungan mengikuti aliran daya. Beban keluaran satu komponen menjadi beban masukan komponen berikutnya.","Mesin pencacah rumput 2,2 kW, 1.440 rpm: sabuk-V nfs = 1,36 (paling kritis), poros Ø 25 mm n = 6,7, bantalan UCP205 Lh = 134.800 jam, baut pisau n = 28,6, las dudukan n = 88,7.","Jika daya motor dinaikkan, sabuklah yang pertama perlu diubah."],
-  formula:"Motor (P, n) → Sabuk (F1 − F2, Fb) → Poros (T, M)\n  → Bantalan (RA, RB) → Rangka (las, baut)",
-  q:["Jika motor diganti 3,7 kW, komponen mana yang dihitung ulang lebih dulu, dan mengapa?","Komponen yang terlalu aman (baut, las) bisa dihemat. Apa yang tetap perlu dipertimbangkan?"]},
- {id:"inov",kind:"sys",x:940,y:760,w:220,h:96,title:"Inovasi & pemberdayaan",line:"produk tepat guna dan diklat vokasi",tags:["uts","uas"],
-  meta:"Sub-CPMK 3.1, 4.x, 5.x",
-  body:["Peluang inovasi: kit transmisi siap pasang untuk UMKM, tensioner otomatis, pisau mudah dilepas, rangka dari baja siku lokal.","Hasil desain dikemas menjadi program diklat vokasi bagi siswa SMK, bengkel UMKM, dan kelompok peternak: identifikasi beban, hitung transmisi dan poros, pilih bantalan, baut, dan las, lalu merakit dan uji K3."],
+  formula:"Diameter minimum (Tresca):\n  d = [32·n·√(M² + T²) / (π·Sy)]^(1/3)\nPuntir murni:\n  d = (16T / (π·τizin))^(1/3)\nPasak:  F = 2T/d\n  τ = F/(w·L)     σb = F/((h/2)·L)",
+  exT:"M = 150 N·m, T = 200 N·m, Sy = 310 MPa, n = 2,5",ex:["√(M² + T²) = 250.000 N·mm","d³ = 32 × 2,5 × 250.000 / (π × 310) = 20.537","d min = 27,4 mm → dipakai 30 mm","Pasak 8×8×40: F = 13.333 N","τ = 41,7 MPa (n = 4,29); σb = 83,3 MPa (n = 3,72)"],
+  q:["Mengapa pada contoh pasak, tumpu lebih kritis daripada geser?","Mengapa pasak sengaja dibuat lebih lemah daripada poros?"]},
+ bantalan:{group:"Elemen mesin",title:"Bantalan",line:"menumpu poros, dinilai dari umur",f:"L10 = (C/P)³",tags:["uas"],meta:"Pertemuan 9–10 · Sub-CPMK 3.2",
+  cap:"Penampang bantalan bola: cincin luar, bola, dan cincin dalam. Reaksi poros R dijadikan beban ekuivalen P untuk menghitung umur.",
+  body:["Jenis: bola, rol, luncur. Bantalan menerima reaksi RA dan RB dari poros.","Bantalan tidak dinilai dengan n, melainkan dengan umur: umur hitung harus melebihi umur target.","Sering kali ukuran bantalan ditentukan diameter poros, bukan beban."],
+  formula:"P   = fw·R\nL10 = (C/P)³          juta putaran (bola)\nLh  = L10·10⁶/(60·n)  jam\nAman bila Lh ≥ Lh target",
+  exT:"Bantalan UCP205 mesin pencacah",ex:["C = 14,0 kN; RA = 648 N; n = 720 rpm","P = 1,2 × 0,648 = 0,78 kN","L10 = (14,0 / 0,78)³ = 5.825 juta putaran","Lh = 5.825×10⁶ / (60 × 720) = 134.800 jam ≥ 20.000"],
+  q:["Mengapa syarat bantalan berupa umur, bukan faktor keamanan?","Jika beban P naik dua kali, umur bantalan bola menjadi berapa bagian?"]},
+ "roda-gigi":{group:"Elemen mesin",title:"Roda gigi",line:"Wt dari daya, tegangan Lewis",f:"σ = Kv·Wt/(F·m·Y)",tags:["uas"],meta:"Pertemuan 10–11 · Sub-CPMK 4.1",
+  cap:"Pasangan roda gigi lurus. Wt bekerja tegak lurus garis sumbu di titik kontak dan meneruskan daya; Wr mendorong kedua roda gigi saling menjauh.",
+  body:["Ukuran gigi ditentukan modul m. Dua roda gigi hanya bisa berpasangan bila modul dan sudut tekannya sama.","Wt dan Wr menjadi beban poros dan bantalan.","Mode gagal: patah gigi (lentur), pitting, aus. Lewis memeriksa patah lentur dengan nd ≈ 3 terhadap Sy. Pinion sebaiknya ≥ 18 gigi."],
+  formula:"d = m·N      p = π·m      i = N2/N1 = n1/n2\nC = m(N1+N2)/2\nV = π·d·n/60.000      Wt = P/V\nKv = (6,1 + V)/6,1\nσ = Kv·Wt/(F·m·Y)      n = Sy/σ",
+  exT:"m = 3, N1 = 20, N2 = 60, 1.450 rpm, 5 kW",ex:["d1 = 60 mm; d2 = 180 mm; C = 120 mm","V = π × 60 × 1.450 / 60.000 = 4,56 m/s","Wt = 5.000 / 4,56 = 1.098 N","Kv = 1,75; σ = 1,75×1.098/(30×3×0,322) = 66,2 MPa","n = 210 / 66,2 = 3,17 ≥ 3 → AMAN"],
+  q:["Tiga cara menaikkan n gigi tanpa mengubah rasio transmisi, dan apa konsekuensinya?","Mengapa pinion sebaiknya memiliki minimal 18 gigi?"]},
+ sabuk:{group:"Elemen mesin",title:"Sabuk-puli & rantai",line:"selisih tarikan meneruskan daya",f:"F1 − F2 = P/V",tags:["uas"],meta:"Pertemuan 12 · Sub-CPMK 4.2",
+  cap:"Transmisi sabuk terbuka. Selisih tarikan F1 − F2 meneruskan daya; sudut kontak θ pada puli kecil menentukan seberapa besar gaya sebelum sabuk slip.",
+  body:["Sabuk meredam kejut, murah, senyap, tetapi bisa slip. Rantai tidak slip dan kuat, tetapi perlu pelumasan dan lebih bising.","Poros menerima beban Fb ≈ F1 + F2 yang jauh lebih besar dari gaya efektif.","Sabuk aman bila nfs ≥ 1,1; rantai aman bila n = Fu/F ≥ 7. Wajib memakai pelindung (guard)."],
+  formula:"n1/n2 = D/d          V = π·d·n/60.000\nF1 − F2 = P/V        T = (F1 − F2)·d/2\nF1/F2 = e^(0,5123·θ)  (sabuk-V)\nnfs = Nb·Pa/(Pnom·Ks)\nRantai: F = P·Ks/V    n = Fu/F",
+  exT:"d = 100 mm, D = 250 mm, 1.450 rpm, 3 kW",ex:["n2 = 1.450 × 100/250 = 580 rpm; θ = 162,7°","V = 7,59 m/s; F1 − F2 = 395 N","F1/F2 = 4,29 → F2 = 120 N; F1 = 515 N; Fb = 636 N","Pa = 2,2 kW: 2 sabuk, nfs = 1,22 ≥ 1,1 → AMAN"],
+  q:["Mengapa sabuk yang dikencangkan berlebihan membuat bantalan cepat rusak?","Pada mesin pencacah, mengapa sabuk menjadi komponen paling kritis?"]},
+ sambungan:{group:"Elemen mesin",title:"Sambungan",line:"baut · keling · las",f:"τ = F/(n·A)",tags:["uas"],meta:"Pertemuan 13 · Sub-CPMK 4.2",
+  cap:"Kiri: keling pada sambungan tumpang menerima geser pada bidang pertemuan pelat dan tekanan tumpu pada pelat. Kanan: las sudut gagal melalui leher las setebal 0,707h.",
+  body:["Baut dapat dilepas; kekuatannya bertumpu pada gaya jepit (preload). Keling dan las bersifat permanen.","Keling diperiksa terhadap geser keling, tumpu pelat, tarik pelat, dan jarak tepi (≥ 1,5–2d). Mode dengan n terkecil adalah titik kritis.","Mutu las dan cacat las menentukan umur rangka yang bergetar."],
+  formula:"Baut:   σ = F/(n·At)    τ = F/(n·A)\n        Fi = 0,75·At·Sp  T = K·Fi·d\nKeling: τ = F/(n·πd²/4)  σb = F/(n·d·t)\nLas:    τ = F/(0,707·h·Σl)\nn = Ssy/τ ≥ 2",
+  exT:"Sambungan tumpang 2 keling, F = 12 kN",ex:["d = 10 mm: τ = 12.000/(2×78,5) = 76,4 MPa","n = 127 / 76,4 = 1,66 < 2 → TIDAK AMAN","d = 12 mm: τ = 53,1 MPa; n = 2,39 → AMAN","Tumpu σb = 12.000/(2×12×6) = 83,3 MPa; n = 3,0"],
+  q:["Mengapa mengganti keling Ø 10 mm ke Ø 12 mm sudah cukup?","Kapan memilih baut, keling, atau las?"]},
+ terpadu:{group:"Sistem",title:"Perancangan terpadu",line:"motor → sabuk → poros → bantalan → rangka",tags:["uas"],meta:"Pertemuan 14 · studi kasus mesin pencacah rumput",
+  cap:"Aliran daya dan beban pada mesin pencacah rumput. Sabuk memiliki faktor keamanan terkecil sehingga menjadi titik kritis desain.",
+  body:["Urutan perhitungan mengikuti aliran daya. Beban keluaran satu komponen menjadi beban masukan komponen berikutnya.","Komponen dengan n terkecil adalah titik kritis. Jika daya motor dinaikkan, sabuklah yang pertama perlu diubah.","Komponen yang terlalu aman (baut, las) bisa dihemat, tetapi getaran dan ketersediaan barang tetap dipertimbangkan."],
+  formula:"Motor (P, n) → Sabuk (F1 − F2, Fb)\n  → Poros (T, M) → Bantalan (RA, RB)\n  → Rangka (las, baut)",
+  exT:"Rekap faktor keamanan",ex:["Sabuk-V 3 × A: nfs = 1,36 ≥ 1,1 (paling kritis)","Poros Ø 25: n = 6,7 ≥ 3","UCP205: Lh = 134.800 jam ≥ 20.000","Baut 2 × M8: n = 28,6 ≥ 2","Las dudukan: n = 88,7 ≥ 2"],
+  q:["Jika motor diganti 3,7 kW, komponen mana yang dihitung ulang lebih dulu?","Bagaimana tabel rekap ini disederhanakan untuk siswa SMK?"]},
+ inovasi:{group:"Sistem",title:"Inovasi & pemberdayaan",line:"produk tepat guna dan diklat vokasi",tags:["uts","uas"],meta:"Sub-CPMK 3.1, 4.x, 5.x",
+  cap:"Hasil rancangan dikembangkan menjadi produk dan program pelatihan vokasi bagi sekolah, UMKM, dan masyarakat.",
+  body:["Peluang inovasi: kit transmisi siap pasang untuk UMKM, tensioner otomatis, pisau mudah dilepas, rangka dari baja siku lokal.","Program diklat vokasi bagi siswa SMK, bengkel UMKM, dan kelompok peternak."],
   formula:"Desain → Prototipe → Modul pelatihan → Paket usaha\n(edutechnopreneurship)",
-  q:["Bagaimana tabel rekap faktor keamanan dapat disederhanakan menjadi tabel pilih-cepat untuk siswa SMK?"]}
-];
-const EDGES = [
- ["root","etika","dilandasi"],["root","proses","ditempuh melalui"],["root","material","bergantung pada"],["root","pedoman","diukur dengan"],
- ["etika","proses"],["proses","c1","diawali"],
- ["material","c3","menentukan teori"],["material","c4","memberi Sy, Ssy"],["pedoman","c5","menetapkan nd"],
- ["c1","c2"],["c2","c3"],["c3","c4"],["c4","c5"],
- ["hub","c3"],
- ["hub","grp"],["hub","poros"],["hub","bear"],["hub","joint"],
- ["gear","poros","Wt, Wr"],["belt","poros","Fb"],["poros","bear","RA, RB"],["bear","joint","ke rangka"],
- ["poros","sys","dirangkai dalam"],["bear","sys"],["grp","sys"],["joint","sys"],
- ["sys","inov","dikemas jadi"]
+  exT:"Rancangan diklat mesin pencacah (4 sesi)",ex:["Sesi 1: identifikasi beban, diagram aliran daya","Sesi 2: hitung transmisi dan poros","Sesi 3: pilih bantalan, baut, dan las","Sesi 4: merakit, uji jalan, ceklis K3"],
+  q:["Bagaimana hasil desain dikemas menjadi tabel pilih-cepat untuk bengkel desa?"]}
+};
+const ORDER = ["etika","proses","material","nd","beban","tegangan","teori","faktor","keputusan","poros","bantalan","roda-gigi","sabuk","sambungan","terpadu","inovasi"];
+const GROUPS = ["Landasan","Lima langkah","Elemen mesin","Sistem"];
+
+/* ---------- map layout ---------- */
+const MAP = [
+ {id:"root",kind:"root",x:410,y:14,w:360,h:66,title:"Merancang komponen mesin",line:"aman · andal · ekonomis",go:"ringkasan"},
+ {id:"etika",kind:"base",x:30,y:118,w:240,h:92},
+ {id:"proses",kind:"base",x:330,y:118,w:240,h:92},
+ {id:"material",kind:"base",x:690,y:118,w:240,h:92},
+ {id:"nd",kind:"base",x:950,y:118,w:210,h:92},
+ {id:"beban",kind:"chain",x:40,y:272,w:172,h:124},
+ {id:"tegangan",kind:"chain",x:272,y:272,w:172,h:124},
+ {id:"teori",kind:"chain",x:504,y:272,w:172,h:124},
+ {id:"faktor",kind:"chain",x:736,y:272,w:172,h:124},
+ {id:"keputusan",kind:"chain",x:968,y:272,w:172,h:124},
+ {id:"hub",kind:"hub",x:460,y:432,w:260,h:72,title:"Elemen mesin",line:"dianalisis dengan langkah 1–5 yang sama",go:"ringkasan",tags:["uts","uas"]},
+ {id:"roda-gigi",kind:"comp",x:45,y:560,w:220,h:96},
+ {id:"sabuk",kind:"comp",x:45,y:676,w:220,h:96},
+ {id:"poros",kind:"comp",x:360,y:566,w:220,h:116},
+ {id:"bantalan",kind:"comp",x:640,y:566,w:220,h:116},
+ {id:"sambungan",kind:"comp",x:920,y:566,w:240,h:116},
+ {id:"terpadu",kind:"sys",x:360,y:760,w:500,h:96,f:"komponen dengan n terkecil = titik kritis"},
+ {id:"inovasi",kind:"sys",x:940,y:760,w:220,h:96}
 ];
 const GROUP = {id:"grp",x:30,y:534,w:250,h:256,label:"Elemen transmisi",tags:["uas"]};
+const EDGES = [
+ ["root","etika","dilandasi"],["root","proses","ditempuh melalui"],["root","material","bergantung pada"],["root","nd","diukur dengan"],
+ ["etika","proses"],["proses","beban","diawali"],
+ ["material","teori","menentukan teori"],["material","faktor","memberi Sy, Ssy"],["nd","keputusan","menetapkan nd"],
+ ["beban","tegangan"],["tegangan","teori"],["teori","faktor"],["faktor","keputusan"],
+ ["hub","teori"],["hub","grp"],["hub","poros"],["hub","bantalan"],["hub","sambungan"],
+ ["roda-gigi","poros","Wt, Wr"],["sabuk","poros","Fb"],["poros","bantalan","RA, RB"],["bantalan","sambungan","ke rangka"],
+ ["poros","terpadu","dirangkai dalam"],["bantalan","terpadu"],["grp","terpadu"],["sambungan","terpadu"],
+ ["terpadu","inovasi","dikemas jadi"]
+];
 
-const stage = document.getElementById("stage");
-const svg = document.getElementById("edges");
-const NS = "http://www.w3.org/2000/svg";
-const byId = {};
-NODES.forEach(n => byId[n.id] = n);
-byId.grp = GROUP;
+/* ---------- helpers ---------- */
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const tagHtml = tags => (tags||[]).map(t=>'<span class="tag '+t+'">'+t.toUpperCase()+'</span>').join("");
 
-// group frame
-const g = document.createElement("div");
-g.className = "group";
-Object.assign(g.style,{left:GROUP.x+"px",top:GROUP.y+"px",width:GROUP.w+"px",height:GROUP.h+"px"});
-g.innerHTML = "<span>"+GROUP.label+"</span>";
-stage.appendChild(g);
-
-// nodes
-NODES.forEach(n => {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = "node " + n.kind;
-  el.id = "node-" + n.id;
-  Object.assign(el.style,{left:n.x+"px",top:n.y+"px",width:n.w+"px",height:n.h+"px"});
-  let html = "";
-  if (n.step) html += '<span class="k">'+n.step+'</span>';
-  html += "<b>"+n.title+"</b><span>"+n.line+"</span>";
-  if (n.f) html += '<span class="f">'+n.f+'</span>';
-  if (n.tags.length) html += '<span class="tags">'+n.tags.map(t=>'<span class="tag '+t+'">'+t.toUpperCase()+'</span>').join("")+'</span>';
-  el.innerHTML = html;
-  el.addEventListener("click", () => select(n.id, true));
-  n.el = el;
-  stage.appendChild(el);
+/* ---------- nav ---------- */
+const nav = document.getElementById("index");
+(function buildNav(){
+  let h = '<div class="grp"><span class="gt">Gambaran</span>'+
+    '<a href="#peta" data-v="peta">Peta konsep</a>'+
+    '<a href="#ringkasan" data-v="ringkasan">Ringkasan rumus</a>'+
+    '<a href="#ujian" data-v="ujian">Persiapan ujian</a></div>';
+  GROUPS.forEach(g => {
+    h += '<div class="grp"><span class="gt">'+g+'</span>';
+    ORDER.filter(id=>T[id].group===g).forEach(id => {
+      const t = T[id];
+      h += '<a href="#'+id+'" data-v="'+id+'"><span>'+esc(t.title)+'</span>'+(t.step?'<span class="n">'+t.step.replace("Langkah ","L")+'</span>':'')+'</a>';
+    });
+    h += '</div>';
+  });
+  nav.innerHTML = h;
+})();
+const menuBtn = document.getElementById("menu-btn");
+menuBtn.addEventListener("click", () => {
+  const open = nav.classList.toggle("closed") === false;
+  menuBtn.setAttribute("aria-expanded", String(open));
 });
 
+/* ---------- map ---------- */
+const stage = document.getElementById("stage"), svg = document.getElementById("edges"), NS = "http://www.w3.org/2000/svg";
+const box = {};
+MAP.forEach(n => box[n.id] = n); box.grp = GROUP;
+const gEl = document.createElement("div");
+gEl.className = "group";
+Object.assign(gEl.style,{left:GROUP.x+"px",top:GROUP.y+"px",width:GROUP.w+"px",height:GROUP.h+"px"});
+gEl.innerHTML = "<span>"+GROUP.label+"</span>";
+stage.appendChild(gEl);
+const mapEls = [];
+MAP.forEach(n => {
+  const t = T[n.id] || {};
+  const title = n.title || t.title, line = n.line || t.line, f = n.f || t.f, tags = n.tags || t.tags || [];
+  const el = document.createElement("a");
+  el.className = "node " + n.kind;
+  el.href = "#" + (n.go || n.id);
+  Object.assign(el.style,{left:n.x+"px",top:n.y+"px",width:n.w+"px",height:n.h+"px"});
+  let h = "";
+  if (t.step) h += '<span class="k">'+t.step+'</span>';
+  h += "<b>"+esc(title)+"</b><span>"+esc(line)+"</span>";
+  if (f) h += '<span class="f">'+esc(f)+'</span>';
+  if (tags.length && n.kind!=="root") h += '<span class="tags">'+tagHtml(tags)+'</span>';
+  el.innerHTML = h;
+  stage.appendChild(el);
+  mapEls.push({el, kind:n.kind, tags});
+});
 function center(r){return {x:r.x+r.w/2,y:r.y+r.h/2}}
-function border(r, toward){
-  const c = center(r), dx = toward.x-c.x, dy = toward.y-c.y;
-  if (!dx && !dy) return c;
-  const sx = dx ? (r.w/2)/Math.abs(dx) : Infinity, sy = dy ? (r.h/2)/Math.abs(dy) : Infinity;
-  const s = Math.min(sx, sy);
+function border(r, to){
+  const c = center(r), dx = to.x-c.x, dy = to.y-c.y;
+  const s = Math.min(dx ? (r.w/2)/Math.abs(dx) : Infinity, dy ? (r.h/2)/Math.abs(dy) : Infinity);
   return {x:c.x+dx*s, y:c.y+dy*s};
 }
-const edgeEls = [];
-function addLabel(text, x, y){
-  const lg = document.createElementNS(NS,"g"); lg.setAttribute("class","lbl");
-  const t = document.createElementNS(NS,"text");
+function label(text,x,y){
+  const g = document.createElementNS(NS,"g"); g.setAttribute("class","lbl");
+  const r = document.createElementNS(NS,"rect"), t = document.createElementNS(NS,"text");
+  const w = Math.max(text.length*6.3,20)+10;
+  r.setAttribute("x",x-w/2); r.setAttribute("y",y-9); r.setAttribute("width",w); r.setAttribute("height",18); r.setAttribute("rx",3);
   t.setAttribute("x",x); t.setAttribute("y",y+4); t.setAttribute("text-anchor","middle"); t.textContent = text;
-  const rc = document.createElementNS(NS,"rect");
-  lg.appendChild(rc); lg.appendChild(t); svg.appendChild(lg);
-  const w = Math.max(text.length*6.3, 20) + 10;
-  rc.setAttribute("x",x-w/2); rc.setAttribute("y",y-9); rc.setAttribute("width",w); rc.setAttribute("height",18); rc.setAttribute("rx",3);
-  return lg;
+  g.appendChild(r); g.appendChild(t); svg.appendChild(g);
 }
-EDGES.forEach(([a,b,label]) => {
-  const A = byId[a], B = byId[b];
-  const p1 = border(A, center(B)), p2 = border(B, center(A));
-  const path = document.createElementNS(NS,"path");
-  path.setAttribute("d",`M${p1.x},${p1.y} L${p2.x},${p2.y}`);
-  path.setAttribute("class","edge"); path.setAttribute("marker-end","url(#ar)");
-  svg.appendChild(path);
-  const lg = label ? addLabel(label,(p1.x+p2.x)/2,(p1.y+p2.y)/2) : null;
-  edgeEls.push({a,b,path,lg});
+EDGES.forEach(([a,b,l]) => {
+  const A = box[a], B = box[b], p1 = border(A,center(B)), p2 = border(B,center(A));
+  const p = document.createElementNS(NS,"path");
+  p.setAttribute("d",`M${p1.x},${p1.y} L${p2.x},${p2.y}`); p.setAttribute("class","edge"); p.setAttribute("marker-end","url(#ar)");
+  svg.appendChild(p);
+  if (l) label(l,(p1.x+p2.x)/2,(p1.y+p2.y)/2);
 });
-// iteration loop: keputusan back to beban
 (function(){
-  const c5 = byId.c5, c1 = byId.c1, y = 414;
-  const x5 = c5.x+c5.w/2, x1 = c1.x+c1.w/2, yb = c5.y+c5.h;
-  const path = document.createElementNS(NS,"path");
-  path.setAttribute("d",`M${x5},${yb} L${x5},${y} L${x1},${y} L${x1},${yb+2}`);
-  path.setAttribute("class","edge loop"); path.setAttribute("marker-end","url(#ar)");
-  svg.appendChild(path);
-  const lg = addLabel("jika n < nd: ubah ukuran, material, atau beban, lalu hitung ulang", 870, y);
-  edgeEls.push({a:"c5",b:"c1",path,lg,loop:true});
+  const c5 = box.keputusan, c1 = box.beban, y = 414, x5 = c5.x+c5.w/2, x1 = c1.x+c1.w/2, yb = c5.y+c5.h;
+  const p = document.createElementNS(NS,"path");
+  p.setAttribute("d",`M${x5},${yb} L${x5},${y} L${x1},${y} L${x1},${yb+2}`); p.setAttribute("class","edge loop"); p.setAttribute("marker-end","url(#ar)");
+  svg.appendChild(p);
+  label("jika n < nd: ubah ukuran, material, atau beban, lalu hitung ulang", 870, y);
 })();
-
-// detail panel
-const panel = document.getElementById("panel");
-function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
-function render(n){
-  const tags = n.tags.map(t=>'<span class="tag '+t+'">'+t.toUpperCase()+'</span>').join(" ");
-  panel.innerHTML =
-    '<div class="head"><h2>'+esc(n.title)+'</h2><span class="meta">'+esc(n.meta)+'</span>'+(tags?'<span class="tags">'+tags+'</span>':'')+'</div>'+
-    '<div class="cols"><div><ul>'+n.body.map(b=>"<li>"+esc(b)+"</li>").join("")+'</ul></div>'+
-    '<div style="display:grid;gap:12px;align-content:start"><div class="formula">'+esc(n.formula)+'</div>'+
-    '<div class="q"><strong>Pertanyaan pemandu</strong>'+n.q.map(x=>"<p>"+esc(x)+"</p>").join("")+'</div></div></div>'+
-    '<p class="hint">Klik kotak lain pada peta untuk berpindah topik.</p>';
-}
-let current = "root";
-function select(id, scroll){
-  current = id;
-  NODES.forEach(n => n.el.classList.toggle("sel", n.id===id));
-  edgeEls.forEach(e => {
-    const on = (e.a===id || e.b===id || (id==="gear"||id==="belt") && (e.a==="grp"||e.b==="grp"));
-    e.path.classList.toggle("on", on);
-    e.path.setAttribute("marker-end", on ? "url(#ar-on)" : "url(#ar)");
-    if (e.lg) e.lg.classList.toggle("on", on);
-  });
-  render(byId[id]);
-  if (scroll && window.innerWidth < 900) panel.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
-}
-
-// exam filter
-const btns = document.querySelectorAll(".filters button");
-btns.forEach(b => b.addEventListener("click", () => {
+document.querySelectorAll(".filters .btn").forEach(b => b.addEventListener("click", () => {
   const f = b.dataset.f;
-  btns.forEach(x => x.setAttribute("aria-pressed", String(x===b)));
-  NODES.forEach(n => n.el.classList.toggle("dim", f!=="all" && n.kind!=="root" && !n.tags.includes(f)));
-  g.style.opacity = (f==="uts") ? .3 : 1;
+  document.querySelectorAll(".filters .btn").forEach(x => x.setAttribute("aria-pressed", String(x===b)));
+  mapEls.forEach(m => m.el.classList.toggle("dim", f!=="all" && m.kind!=="root" && !m.tags.includes(f)));
+  gEl.style.opacity = f==="uts" ? .3 : 1;
 }));
-
-// fit stage to width
-const box = document.getElementById("mapbox"), scaler = document.getElementById("scaler");
+const mapbox = document.getElementById("mapbox"), scaler = document.getElementById("scaler");
 function fit(){
-  const avail = box.clientWidth;
-  const s = Math.max(0.62, Math.min(1, avail/1180));
+  const s = Math.max(0.62, Math.min(1, mapbox.clientWidth/1180));
   stage.style.transform = "scale("+s+")";
-  scaler.style.width = (1180*s)+"px";
-  scaler.style.height = (880*s)+"px";
+  scaler.style.width = (1180*s)+"px"; scaler.style.height = (880*s)+"px";
 }
 window.addEventListener("resize", fit);
-fit();
-select("root", false);
+
+/* ---------- topic view ---------- */
+const vMateri = document.getElementById("v-materi");
+function renderTopic(id){
+  const t = T[id], i = ORDER.indexOf(id), prev = ORDER[i-1], next = ORDER[i+1];
+  const tpl = document.getElementById("fig-"+id);
+  vMateri.innerHTML =
+    '<div class="crumb"><a href="#peta">Peta konsep</a><span>/</span><span>'+esc(t.group)+'</span></div>'+
+    '<div class="thead"><h1>'+esc(t.title)+'</h1><div class="meta"><span>'+esc(t.meta)+'</span>'+tagHtml(t.tags)+'</div><p class="lede">'+esc(t.line.charAt(0).toUpperCase()+t.line.slice(1))+'.</p></div>'+
+    '<figure class="fig" id="fig-slot"><figcaption>'+esc(t.cap)+'</figcaption></figure>'+
+    '<div class="cols">'+
+      '<div><div class="box"><h3>Konsep inti</h3><ul>'+t.body.map(b=>"<li>"+esc(b)+"</li>").join("")+'</ul></div>'+
+      '<div class="box q"><h3>Pertanyaan pemandu</h3>'+t.q.map(x=>"<p>"+esc(x)+"</p>").join("")+'</div></div>'+
+      '<div><div class="box"><h3>Rumus</h3><pre class="formula">'+esc(t.formula)+'</pre></div>'+
+      '<div class="box ex"><h3>Contoh dari materi kuliah</h3><p class="hint">'+esc(t.exT)+'</p><ol>'+t.ex.map(x=>"<li>"+esc(x)+"</li>").join("")+'</ol></div></div>'+
+    '</div>'+
+    '<div class="pager">'+
+      (prev?'<a class="prev" href="#'+prev+'"><small>Sebelumnya</small><b>← '+esc(T[prev].title)+'</b></a>':'<span></span>')+
+      (next?'<a class="next" href="#'+next+'"><small>Berikutnya</small><b>'+esc(T[next].title)+' →</b></a>':'<a class="next" href="#ujian"><small>Selesai</small><b>Persiapan ujian →</b></a>')+
+    '</div>';
+  if (tpl) document.getElementById("fig-slot").prepend(tpl.content.cloneNode(true));
+}
+
+/* ---------- router ---------- */
+const views = {peta:"v-peta", ringkasan:"v-ringkasan", ujian:"v-ujian"};
+function route(){
+  let id = location.hash.slice(1) || "peta";
+  if (!views[id] && !T[id]) id = "peta";
+  const viewId = views[id] || "v-materi";
+  document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== viewId);
+  if (T[id]) renderTopic(id);
+  nav.querySelectorAll("a").forEach(a => a.toggleAttribute("aria-current", false));
+  const cur = nav.querySelector('a[data-v="'+id+'"]'); if (cur) cur.setAttribute("aria-current","page");
+  if (id === "peta") fit();
+  document.title = (T[id] ? T[id].title + " · " : "") + "Peta Konsep Desain Komponen Mesin";
+  if (window.innerWidth <= 900) { nav.classList.add("closed"); menuBtn.setAttribute("aria-expanded","false"); }
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", route);
+route();
 </script>
 
 </body>
